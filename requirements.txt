@@ -8,3 +8,4 @@ lxml
 statsmodels
 python-dotenv
 pymysql
+cryptography
