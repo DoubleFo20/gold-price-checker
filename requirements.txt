@@ -7,5 +7,5 @@ numpy
 lxml
 statsmodels
 python-dotenv
-pymysql
-cryptography
+pymysql>=1.1.0
+cryptography>=41.0.0
