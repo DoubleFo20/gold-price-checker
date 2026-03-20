@@ -1634,6 +1634,7 @@ def _line_push(line_user_id: str, text: str) -> bool:
 def run_scheduled_jobs_once():
     stats = {
         "ok": True,
+        "errors": [],
         "checked_alerts": 0,
         "triggered_alerts": 0,
         "verified_forecasts": 0,
@@ -1643,17 +1644,22 @@ def run_scheduled_jobs_once():
 
     try:
         thai_data = refresh_thai_cache()
-    except Exception:
+    except Exception as e:
+        stats["ok"] = False
+        stats["errors"].append(f"thai_refresh_failed: {e}")
         thai_data = thai_cache.get("data") or {}
     try:
         world_data = refresh_world_cache()
-    except Exception:
+    except Exception as e:
+        stats["ok"] = False
+        stats["errors"].append(f"world_refresh_failed: {e}")
         world_data = world_cache.get("data") or {}
 
     try:
         save_daily_price()
-    except Exception:
-        pass
+    except Exception as e:
+        stats["ok"] = False
+        stats["errors"].append(f"save_daily_price_failed: {e}")
 
     current_prices = {
         "bar": to_float(thai_data.get("bar_sell")) if thai_data else 0,
@@ -1662,33 +1668,44 @@ def run_scheduled_jobs_once():
         "world": to_float(world_data.get("price_usd_per_ounce")) if world_data else 0,
     }
 
-    conn = get_db_connection()
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        stats["ok"] = False
+        stats["errors"].append(f"db_connect_failed: {e}")
+        stats["hint"] = "ตรวจสอบ DB_HOST/DB_USER/DB_PASS/DB_NAME ว่าเป็นฐานข้อมูลที่เข้าถึงได้จาก Render (ห้ามเป็น localhost)"
+        return stats
     try:
         with conn.cursor() as cursor:
             # ---- Price Alerts ----
+            alerts = []
             try:
-                cursor.execute(
-                    """
-                    SELECT pa.*, u.name, u.email, u.line_user_id,
-                           COALESCE(pa.notify_email, u.email) AS receiver_email
-                    FROM price_alerts pa
-                    INNER JOIN users u ON u.id = pa.user_id
-                    WHERE pa.triggered = 0
-                    """
-                )
-            except Exception:
-                # รองรับกรณี DB ยังไม่มีคอลัมน์ line_user_id
-                cursor.execute(
-                    """
-                    SELECT pa.*, u.name, u.email,
-                           COALESCE(pa.notify_email, u.email) AS receiver_email
-                    FROM price_alerts pa
-                    INNER JOIN users u ON u.id = pa.user_id
-                    WHERE pa.triggered = 0
-                    """
-                )
+                try:
+                    cursor.execute(
+                        """
+                        SELECT pa.*, u.name, u.email, u.line_user_id,
+                               COALESCE(pa.notify_email, u.email) AS receiver_email
+                        FROM price_alerts pa
+                        INNER JOIN users u ON u.id = pa.user_id
+                        WHERE pa.triggered = 0
+                        """
+                    )
+                except Exception:
+                    # รองรับกรณี DB ยังไม่มีคอลัมน์ line_user_id
+                    cursor.execute(
+                        """
+                        SELECT pa.*, u.name, u.email,
+                               COALESCE(pa.notify_email, u.email) AS receiver_email
+                        FROM price_alerts pa
+                        INNER JOIN users u ON u.id = pa.user_id
+                        WHERE pa.triggered = 0
+                        """
+                    )
+                alerts = cursor.fetchall() or []
+            except Exception as e:
+                stats["ok"] = False
+                stats["errors"].append(f"alerts_query_failed: {e}")
 
-            alerts = cursor.fetchall() or []
             stats["checked_alerts"] = len(alerts)
 
             for alert in alerts:
@@ -1740,34 +1757,38 @@ def run_scheduled_jobs_once():
                     traceback.print_exc()
 
             # ---- Forecast Verification ----
+            due_forecasts = []
             try:
-                cursor.execute(
-                    """
-                    SELECT sf.id, sf.user_id, sf.target_date, sf.max_price, sf.min_price,
-                           u.name, u.email, u.line_user_id
-                    FROM saved_forecasts sf
-                    INNER JOIN users u ON u.id = sf.user_id
-                    WHERE sf.verified_at IS NULL
-                      AND sf.target_date <= CURDATE()
-                    ORDER BY sf.target_date ASC
-                    LIMIT 100
-                    """
-                )
-            except Exception:
-                cursor.execute(
-                    """
-                    SELECT sf.id, sf.user_id, sf.target_date, sf.max_price, sf.min_price,
-                           u.name, u.email
-                    FROM saved_forecasts sf
-                    INNER JOIN users u ON u.id = sf.user_id
-                    WHERE sf.verified_at IS NULL
-                      AND sf.target_date <= CURDATE()
-                    ORDER BY sf.target_date ASC
-                    LIMIT 100
-                    """
-                )
-
-            due_forecasts = cursor.fetchall() or []
+                try:
+                    cursor.execute(
+                        """
+                        SELECT sf.id, sf.user_id, sf.target_date, sf.max_price, sf.min_price,
+                               u.name, u.email, u.line_user_id
+                        FROM saved_forecasts sf
+                        INNER JOIN users u ON u.id = sf.user_id
+                        WHERE sf.verified_at IS NULL
+                          AND sf.target_date <= CURDATE()
+                        ORDER BY sf.target_date ASC
+                        LIMIT 100
+                        """
+                    )
+                except Exception:
+                    cursor.execute(
+                        """
+                        SELECT sf.id, sf.user_id, sf.target_date, sf.max_price, sf.min_price,
+                               u.name, u.email
+                        FROM saved_forecasts sf
+                        INNER JOIN users u ON u.id = sf.user_id
+                        WHERE sf.verified_at IS NULL
+                          AND sf.target_date <= CURDATE()
+                        ORDER BY sf.target_date ASC
+                        LIMIT 100
+                        """
+                    )
+                due_forecasts = cursor.fetchall() or []
+            except Exception as e:
+                stats["ok"] = False
+                stats["errors"].append(f"forecasts_query_failed: {e}")
             for row in due_forecasts:
                 try:
                     target_date = row.get("target_date")
@@ -1868,7 +1889,8 @@ def api_run_jobs():
         return jsonify(result), 200
     except Exception as e:
         traceback.print_exc()
-        return jsonify(ok=False, message=str(e)), 500
+        # ให้ Worker/cron อ่าน error ได้ แต่ไม่ทำให้เรียก API แล้วล้มด้วย 500
+        return jsonify(ok=False, message=str(e)), 200
 
 
 def background_alert_checker():
