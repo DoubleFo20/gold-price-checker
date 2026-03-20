@@ -1,0 +1,10 @@
+flask
+requests
+beautifulsoup4
+yfinance
+scikit-learn
+numpy
+lxml
+statsmodels
+python-dotenv
+pymysql

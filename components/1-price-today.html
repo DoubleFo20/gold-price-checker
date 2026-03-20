@@ -1,0 +1,67 @@
+<div class="section" id="price-today-section">
+    <h2>ราคาทองคำวันนี้</h2>
+    <div class="price-tabs">
+        <button class="price-tab-link active" onclick="switchPriceTab('thai', this)">ราคาทองไทย</button>
+        <button class="price-tab-link" onclick="switchPriceTab('world', this)">ราคาทองโลก</button>
+    </div>
+
+    <!-- เนื้อหาราคาทองไทย -->
+    <div class="price-content-wrapper active" id="thai-price-content">
+        <!-- ------ [แก้ไข ID และโครงสร้างส่วนนี้] ------ -->
+        <div class="price-announcement">
+            <span class="announcement-text">
+                ราคาทองคำประจำวันที่ <span id="thai-update-date">--</span>
+                (ครั้งที่ <span id="thai-update-round">--</span>)
+                <span class="change-indicator" id="thai-today-change"></span>
+            </span>
+            <span class="refresh-section">
+                อัปเดตล่าสุด: <span id="thai-manual-update-time" class="current-time-display">--:--:--</span>
+                <button class="refresh-btn" onclick="fetchAndUpdatePriceBoard()">↻</button>
+            </span>
+        </div>
+        <div class="price-grid">
+            <div class="price-category">
+                <h4>ทองคำแท่ง 96.5%</h4>
+                <div class="price-box-wrapper">
+                    <div class="price-box buy"><span>ราคารับซื้อ</span><strong id="thai-bar-buy">--</strong></div>
+                    <div class="price-box sell"><span>ราคาขายออก</span><strong id="thai-bar-sell">--</strong></div>
+                </div>
+            </div>
+            <div class="price-category">
+                <h4>ทองรูปพรรณ 90%</h4>
+                <div class="price-box-wrapper">
+                    <div class="price-box buy"><span>ราคารับซื้อ</span><strong id="thai-jewelry-buy">--</strong></div>
+                    <div class="price-box sell"><span>ราคาขายออก</span><strong id="thai-jewelry-sell">--</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- เนื้อหาราคาทองโลก -->
+    <div class="price-content-wrapper" id="world-price-content">
+        <!-- ------ [แก้ไข ID และโครงสร้างส่วนนี้] ------ -->
+        <div class="price-announcement">
+            <span class="announcement-text">
+                ราคาตลาดโลก Spot Gold
+            </span>
+            <span class="refresh-section">
+                อัปเดตล่าสุด: <span id="world-update-time" class="current-time-display">--:--:--</span>
+                <button class="refresh-btn" onclick="fetchAndUpdatePriceBoard()">↻</button>
+            </span>
+        </div>
+        <div class="price-grid">
+            <div class="price-category">
+                <h4>Gold Spot <small>(USD/Ounce)</small></h4>
+                <div class="price-box-wrapper">
+                    <strong class="large-price" id="world-spot-usd">--</strong>
+                </div>
+            </div>
+            <div class="price-category">
+                <h4>เทียบเท่าเงินบาท <small>(บาท/บาททอง)</small></h4>
+                <div class="price-box-wrapper">
+                    <strong class="large-price" id="world-spot-thb">--</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,102 @@
+<div class="section" id="gold-calculator-section">
+    <h2>คำนวณมูลค่าทอง</h2>
+    <div id="calculator-content">
+        <!-- ส่วนสำหรับ Guest (ยังคงเหมือนเดิม) -->
+        <div class="members-only" id="calculator-login-required">
+            <h3>ฟีเจอร์สำหรับสมาชิก</h3>
+            <p>คุณต้องลงชื่อเข้าใช้ก่อนจึงจะสามารถใช้เครื่องคำนวณมูลค่าทองได้</p>
+            <button class="cta-button" onclick="showLoginModal()">ล็อกอินหรือสมัครสมาชิก</button>
+        </div>
+
+        <!-- Layout หลักสำหรับสมาชิก (จะแสดงเมื่อล็อกอิน) -->
+        <div class="calculator-main-layout" id="calculator-tool" style="display:none;">
+
+            <!-- คอลัมน์ซ้าย (เดิมคือขวา): เครื่องคำนวณและผลลัพธ์ -->
+            <div class="calculator-panel">
+                <h3>คำนวณ</h3>
+                <div class="calc-form">
+                    <label for="calc-weight-input">น้ำหนัก</label>
+                    <input type="number" id="calc-weight-input" value="0" step="any" oninput="calculateGoldValue()">
+                    <select id="calc-unit-select" onchange="calculateGoldValue()">
+                        <option value="gram">กรัม</option>
+                        <option value="salung">สลึง</option>
+                        <option value="baht">บาท</option>
+                        <option value="kilogram">กิโลกรัม</option>
+                    </select>
+                </div>
+                <div class="result-display">
+                    <div class="result-item"><span>กรัม</span><span id="result-gram">--</span></div>
+                    <div class="result-item"><span>บาท</span><span id="result-baht">--</span></div>
+                    <hr>
+                    <div class="result-item"><span>ทองแท่ง (รับซื้อ)</span><span id="result-bar-buy">--</span></div>
+                    <div class="result-item"><span>ทองแท่ง (ขายออก)</span><span id="result-bar-sell">--</span></div>
+                    <div class="result-item"><span>ทองรูปพรรณ (รับซื้อ)</span><span id="result-jewelry-buy">--</span>
+                    </div>
+                    <div class="result-item"><span>ทองรูปพรรณ (ขายออก)</span><span id="result-jewelry-sell">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- คอลัมน์ขวา (เดิมคือซ้าย): ตารางเปรียบเทียบน้ำหนัก -->
+            <div class="weight-tables-wrapper">
+                <table class="weight-table">
+                    <thead>
+                        <tr>
+                            <th>น้ำหนักทอง</th>
+                            <th>น้ำหนักกรัม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1 กรัม</td>
+                            <td>1.000 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>ครึ่งสลึง</td>
+                            <td>1.905 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>1 สลึง</td>
+                            <td>3.811 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>2 สลึง</td>
+                            <td>7.622 กรัม</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table class="weight-table">
+                    <thead>
+                        <tr>
+                            <th>น้ำหนักทอง</th>
+                            <th>น้ำหนักกรัม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1 บาท</td>
+                            <td>15.244 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>2 บาท</td>
+                            <td>30.488 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>3 บาท</td>
+                            <td>45.732 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>4 บาท</td>
+                            <td>60.976 กรัม</td>
+                        </tr>
+                        <tr>
+                            <td>5 บาท</td>
+                            <td>76.220 กรัม</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div> <!-- ปิด .calculator-main-layout -->
+    </div>
+</div>

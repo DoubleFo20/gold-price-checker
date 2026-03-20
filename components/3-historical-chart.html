@@ -1,0 +1,58 @@
+<!-- เรายังคงใช้ section หลักเหมือนเดิม -->
+<div class="section" id="Historical-gold-charts">
+    <h2>กราฟราคาทองย้อนหลัง (วิเคราะห์ 1 ปี)</h2>
+    
+    <!-- ส่วน Tab ยังคงเหมือนเดิม แต่เราจะเปลี่ยน onclick ในขั้นตอนถัดไป -->
+    <div class="tab history-tab">
+        <!-- <button class="history-toggle active" onclick="switchHistoricalChart('thai')">กราฟราคาทองไทย</button>
+        <button class="history-toggle" onclick="switchHistoricalChart('world')">กราฟราคาทองโลก</button> -->
+        <button class="history-toggle active" onclick="openHistoryChart('thai')">กราฟราคาทองไทย</button>
+        <button class="history-toggle" onclick="openHistoryChart('world')">กราฟราคาทองโลก</button>
+    </div>
+
+    <!-- ------ [แทรกโค้ดใหม่] ------ -->
+    <!-- สร้าง div หลักสำหรับจัด Layout 2 คอลัมน์ -->
+    <div class="historical-layout">
+
+        <!-- [ย้ายโค้ดเก่ามาไว้ตรงนี้] คอลัมน์ซ้ายสำหรับกราฟ -->
+        <div class="chart-wrapper">
+            <div id="thai-history-chart" class="chart-container" style="display:block;">
+                <canvas id="goldChartThai"></canvas>
+            </div>
+            <div id="world-history-chart" class="chart-container" style="display:none;">
+                <canvas id="goldChartWorld"></canvas>
+            </div>
+        </div>
+
+        <!-- [เพิ่มโค้ดใหม่] คอลัมน์ขวาสำหรับกล่องข้อมูลสรุป -->
+        <div class="stats-wrapper">
+            <div class="stats-card">
+                <h3>ข้อมูลสรุปเชิงสถิติ</h3>
+                <div class="stat-item">
+                    <span class="stat-label">ราคาสูงสุด (1 ปี)</span>
+                    <span class="stat-value" id="stat-high">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">ราคาต่ำสุด (1 ปี)</span>
+                    <span class="stat-value" id="stat-low">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">ราคาเฉลี่ย (1 ปี)</span>
+                    <span class="stat-value" id="stat-avg">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">ผลตอบแทน (1 ปี)</span>
+                    <span class="stat-value" id="stat-return">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">ความผันผวน</span>
+                    <span class="stat-value" id="stat-volatility">--</span>
+                </div>
+                <small class="stats-note">*ข้อมูลคำนวณจากราคาย้อนหลัง 365 วัน</small>
+            </div>
+        </div>
+
+    </div> <!-- ปิด historical-layout -->
+    <!-- ------ [สิ้นสุดการแทรก/เพิ่มโค้ด] ------ -->
+
+</div> <!-- ปิด section -->

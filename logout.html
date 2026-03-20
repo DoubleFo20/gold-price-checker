@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Logout</title>
+    <meta http-equiv="refresh" content="0; url=index.html?clear=true">
+</head>
+<body>
+    <p>Logging out...</p>
+    <script>
+        localStorage.setItem('force_logout', 'true');
+        localStorage.clear();
+        sessionStorage.clear();
+    </script>
+</body>
+</html>

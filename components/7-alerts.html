@@ -1,0 +1,46 @@
+<div class="section" id="alerts-section">
+    <h2>ตั้งค่าแจ้งเตือนราคาทอง</h2>
+    <div id="alert-content">
+        <div class="members-only" id="alert-login-required">
+            <h3>ไม่พลาดทุกการเคลื่อนไหว</h3>
+            <p>ลงชื่อเข้าใช้เพื่อตั้งค่าการแจ้งเตือนราคาผ่านอีเมล เมื่อราคาทองถึงจุดที่คุณต้องการ</p>
+            <button class="cta-button" onclick="showLoginModal()">ล็อกอินหรือสมัครสมาชิก</button>
+        </div>
+        
+        <div class="alert-form-wrapper" id="alert-tool" style="display:none;">
+            <p class="form-description">เราจะส่งอีเมลแจ้งเตือนคุณ 1 ครั้ง เมื่อราคาเป็นไปตามเงื่อนไขที่คุณตั้งไว้</p>
+            <div class="alert-form-grid">
+                <div class="form-group">
+                    <label for="alert-type">แจ้งเตือนเมื่อราคาถึงจุดที่กำหนด</label>
+                    <select id="alert-type" class="custom-select">
+                        <option value="above">สูงกว่า หรือ เท่ากับ</option>
+                        <option value="below">ต่ำกว่า หรือ เท่ากับ</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="alert-gold-type">ประเภททอง</label>
+                    <select id="alert-gold-type" class="custom-select">
+                        <option value="bar">ทองคำแท่ง</option>
+                        <option value="ornament">ทองรูปพรรณ</option>
+                        <option value="world">ทองโลก (USD/oz)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="target-price">ราคาเป้าหมาย (บาท/บาททอง)</label>
+                    <input type="number" id="target-price" placeholder="เช่น 42000">
+                </div>
+                <div class="form-group">
+                    <label for="user-email">ส่งไปที่อีเมล</label>
+                    <input type="email" id="user-email" placeholder="อีเมลของคุณ">
+                </div>
+                <button class="cta-button" onclick="setupAlert()">ตั้งค่าการแจ้งเตือน</button>
+            </div>
+            
+            <p id="alert-status"></p>
+            <div class="alert-list-wrapper" id="alert-list-container">
+                <h3>รายการแจ้งเตือนของคุณ</h3>
+                <div id="alert-list"></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Mock Notification System</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f7fafc; display: flex; justify-content: center; padding-top: 4rem; }
+        .container { background: white; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); width: 400px; }
+        h1 { font-size: 1.25rem; font-weight: bold; text-align: center; color: #D97706; margin-bottom: 1.5rem; }
+        .price-display { text-align: center; margin-bottom: 1.5rem; background: #FFFBEB; padding: 1rem; border-radius: 0.375rem; border-left: 4px solid #FBBF24; }
+        label { display: block; margin-bottom: 0.5rem; color: #374151; }
+        input, select, button { width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 0.375rem; box-sizing: border-box; margin-bottom: 1rem; }
+        button { background-color: #D97706; color: white; font-weight: bold; cursor: pointer; }
+        #status-message { text-align: center; margin-top: 1rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ระบบจำลองการแจ้งเตือนราคา</h1>
+        <div class="price-display">
+            <p>ราคาทองคำแท่ง (ขายออก) ปัจจุบัน:</p>
+            <h2 id="current-price-display" style="font-size: 1.5rem; font-weight: bold;">Loading...</h2>
+        </div>
+        
+        <label for="alert-type">แจ้งเตือนเมื่อราคา</label>
+        <select id="alert-type">
+            <option value="above">สูงกว่า หรือ เท่ากับ</option>
+            <option value="below">ต่ำกว่า หรือ เท่ากับ</option>
+        </select>
+
+        <label for="target-price">ราคาเป้าหมาย (บาท)</label>
+        <input type="number" id="target-price" placeholder="เช่น 64000">
+
+        <label for="user-email">ส่งอีเมลจำลองไปที่</label>
+        <input type="email" id="user-email" placeholder="กรอกอีเมลของคุณ" value="naruto.ruto124@gmail.com">
+
+        <button id="set-alert-btn">ตั้งค่าการแจ้งเตือน (จำลอง)</button>
+        
+        <p id="status-message"></p>
+    </div>
+
+    <!-- Script ของ EmailJS ยังคงต้องใช้ -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script src="js/mock_script.js"></script>
+</body>
+</html>

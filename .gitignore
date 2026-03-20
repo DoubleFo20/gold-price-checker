@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.env
+ngrok.exe
+*.pyc
+.git/
+.DS_Store

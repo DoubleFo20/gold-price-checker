@@ -1,0 +1,78 @@
+<div class="section" id="forecast-section">
+    <div class="section-header">
+        <h2>พยากรณ์ราคาทองคำ</h2>
+    </div>
+
+    <div id="forecast-content">
+        <div class="members-only" id="forecast-login-required">
+            <h3>ฟีเจอร์พิเศษสำหรับสมาชิก</h3>
+            <p>ข้อมูลพยากรณ์ราคาทองคำด้วย AI สงวนสิทธิ์สำหรับสมาชิกที่ลงชื่อเข้าใช้แล้วเท่านั้น</p>
+            <button class="cta-button" onclick="showLoginModal()">ล็อกอินหรือสมัครสมาชิก</button>
+        </div>
+
+        <div class="forecast-wrapper" id="forecast-tool" style="display:none;">
+            <div class="forecast-controls-panel">
+                <div class="control-group">
+                    <label for="forecast-period">เลือกระยะเวลาพยากรณ์:</label>
+                    <select id="forecast-period" class="custom-select">
+                        <option value="1">1 วันข้างหน้า (ทดสอบ)</option>
+                        <option value="7">7 วันข้างหน้า</option>
+                        <option value="14">14 วันข้างหน้า</option>
+                        <option value="30">1 เดือนข้างหน้า</option>
+                        <option value="90">3 เดือนข้างหน้า</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="forecast-hist-days">ใช้ข้อมูลย้อนหลัง (เพื่อวิเคราะห์):</label>
+                    <select id="forecast-hist-days" class="custom-select">
+                        <option value="90" selected>ARIMA ข้อมูล 90 วัน</option>
+                        <option value="180">ARIMA ข้อมูล 180 วัน</option>
+                        <option value="360">ARIMA ข้อมูล 360 วัน</option>
+                    </select>
+                </div>
+                <button class="cta-button" id="generate-forecast" type="button">สร้างการพยากรณ์</button>
+            </div>
+
+            <div class="forecast-results-container" id="forecast-results" style="display: none;">
+                <div class="forecast-chart-container">
+                    <canvas id="forecast-chart"></canvas>
+                </div>
+                <div class="forecast-summary-container">
+                    <h3>สรุปผลการพยากรณ์</h3>
+                    <div class="summary-item"><span>แนวโน้ม:</span><span id="trend-indicator">--</span></div>
+                    <div class="summary-item"><span>คาดการณ์สูงสุด:</span><span id="max-price">--</span></div>
+                    <div class="summary-item"><span>คาดการณ์ต่ำสุด:</span><span id="min-price">--</span></div>
+                    <div class="summary-item"><span>ความน่าเชื่อถือ (R²):</span><span id="confidence-level">--</span>
+                    </div>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button class="cta-button" id="save-forecast-btn" type="button"
+                            style="display: none; width: 100%; border-radius: 8px; font-size: 0.95rem; padding: 10px;">
+                            <i class="fas fa-save"></i> บันทึกคำพยากรณ์
+                        </button>
+                        <p id="save-forecast-status"
+                            style="font-size: 0.85rem; color: var(--brand-gold); margin-top: 8px;"></p>
+                    </div>
+                </div>
+                <div class="forecast-factors-panel">
+                    <h3>ปัจจัยที่ใช้ในการพยากรณ์</h3>
+                    <ul>
+                        <li>ข้อมูลราคาย้อนหลัง <span id="hist-days-display">90</span> วัน</li>
+                        <li>โมเดลการคำนวณ: <span id="model-used-display">--</span></li>
+                        <li>แหล่งข้อมูล: <span id="data-source-display">--</span></li>
+                        <li>ความไม่แน่นอนทางการเมือง</li>
+                    </ul>
+                </div>
+                <!-- ส่วนปัจจัยที่ใช้พยากรณ์
+                <div class="forecast-factors-panel">
+                    <h3>ปัจจัยที่ใช้ในการพยากรณ์</h3>
+                    <ul>
+                        <li>ข้อมูลราคาย้อนหลัง 1 ปี</li>
+                        <li>ค่าเงินดอลลาร์สหรัฐ</li>
+                        <li>อัตราดอกเบี้ย FED</li>
+                        
+                    </ul>
+                </div> -->
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,25 @@
+name: Scheduled Alert Jobs
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call scheduled jobs endpoint
+        env:
+          JOB_URL: ${{ secrets.JOB_URL }}
+          JOB_TOKEN: ${{ secrets.JOB_TOKEN }}
+        run: |
+          if [ -z "$JOB_URL" ] || [ -z "$JOB_TOKEN" ]; then
+            echo "Missing JOB_URL or JOB_TOKEN secrets"
+            exit 1
+          fi
+          curl -sS -X POST "$JOB_URL" \
+            -H "Authorization: Bearer $JOB_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{}"

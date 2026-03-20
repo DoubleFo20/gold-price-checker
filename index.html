@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GOLD PRICE TODAY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4">
+</head>
+
+<body>
+    <div id="hero-container"></div>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">GOLD PRICE TODAY</div>
+            <ul class="nav-menu">
+                <li><a href="#price-today-container">ราคาทองคำวันนี้</a></li>
+                <li><a href="#news-container-placeholder">ข่าวสารทองคำ</a></li>
+                <li><a href="#live-chart-container">กราฟราคาทอง</a></li>
+                <li><a href="#historical-chart-container">กราฟราคาทองย้อนหลัง</a></li>
+                <li><a href="#calculator-container">เครื่องคำนวณทอง</a></li>
+                <li><a href="#forecast-container">พยากรณ์ราคาทองคำ</a></li>
+                <li><a href="#alerts-container">แจ้งเตือนราคา</a></li>
+                <!-- <li><a href="#po-container">ปฏิทินเศรษฐกิจ</a></li> -->
+                
+                <!-- Notification Bell -->
+                <li id="notification-menu-container" style="display: none;">
+                    <a href="#" class="nav-notification-btn" id="notifBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notif-badge" id="notif-count">0</span>
+                    </a>
+                    <div class="notif-dropdown" id="notifDropdown">
+                        <div class="notif-header">
+                            <h3>การแจ้งเตือน</h3>
+                            <button id="mark-all-read">อ่านทั้งหมด</button>
+                        </div>
+                        <div class="notif-list" id="notif-list-container">
+                            <p class="notif-empty">ไม่มีการแจ้งเตือนใหม่</p>
+                        </div>
+                        <div class="notif-footer">
+                            <a href="#" id="view-all-notifs">ดูทั้งหมด</a>
+                        </div>
+                    </div>
+                </li>
+
+                <li class="nav-item-dropdown" id="user-menu-container" style="display: none;">
+                    <a href="#" class="login-btn" id="userBtn">
+                        <span id="username-display"></span> ▼
+                    </a>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <a href="#" id="profileLink">ข้อมูลส่วนตัว</a>
+                        <a href="#" id="logoutBtn">ออกจากระบบ</a>
+                    </div>
+                </li>
+                <li id="login-menu-container">
+                    <a href="#" class="login-btn" id="loginBtn">ล็อกอิน</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Header (โครงสร้างหลัก) -->
+        <header id="gold-price">
+            <h1>GOLD PRICE TODAY</h1>
+            <p>ติดตามราคาทองคำแบบ Real-time พร้อมวิเคราะห์แนวโน้ม</p>
+            <p><small>อัปเดตล่าสุด:
+                    <span class="current-date-display"></span>
+                    <span class="current-time-display"></span>
+                </small></p>
+        </header>
+
+
+        <div id="main-content-container">
+            <!-- === พื้นที่สำหรับโหลด Components === -->
+            <div id="price-today-container"></div>
+            <div id="live-chart-container"></div>
+            <div id="historical-chart-container"></div>
+            <div id="news-container-placeholder"></div>
+            <div id="calculator-container"></div>
+            <div id="forecast-container"></div>
+            <div id="alerts-container"></div>
+            <!-- <div id="economic-calendar-container"></div>  -->
+            <!-- ==================================== -->
+        </div>
+    </div>
+
+
+    <!-- Login Modal (เวอร์ชันอัปเกรด) -->
+    <div id="loginModal">
+        <div class="modal-container auth-modal" onclick="event.stopPropagation()">
+            <!-- Side Panel (Left) -->
+            <div class="auth-info-panel">
+                <div class="auth-info-content">
+                    <h2>GOLD PRICE TODAY</h2>
+                    <p>เข้าสู่ระบบเพื่อปลดล็อกฟีเจอร์ระดับพรีเมียม</p>
+                    <ul class="auth-features-list">
+                        <li><i class="fas fa-chart-line"></i> กราฟและบทวิเคราะห์เชิงลึก</li>
+                        <li><i class="fas fa-bell"></i> แจ้งเตือนราคาทองคำ Real-time</li>
+                        <li><i class="fas fa-calculator"></i> เครื่องคำนวณมูลค่าทองคำ</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Form Area (Right) -->
+            <div class="auth-body">
+                <span class="close-button-absolute" onclick="hideLoginModal()">&times;</span>
+                <div class="auth-form-area">
+
+                    <!-- Sign In Form -->
+                    <div class="form-container sign-in-container">
+                        <form action="#" id="login-form">
+                            <h1>ยินดีต้อนรับกลับมา</h1>
+                            <span class="auth-subtitle">เข้าสู่ระบบเพื่อใช้งานต่อ</span>
+
+                            <div class="input-group">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" id="login-email" placeholder="อีเมลของคุณ" required />
+                            </div>
+
+                            <div class="input-group">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" id="login-password" placeholder="รหัสผ่าน" required />
+                                <button type="button" class="toggle-password" data-target="login-password"
+                                    aria-label="แสดงรหัสผ่าน">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+
+                            <a href="#" id="forgot-password-link">ลืมรหัสผ่านใช่ไหม?</a>
+
+                            <button type="button" id="login-button" class="primary-btn"
+                                style="margin-top: 20px;">เข้าสู่ระบบ</button>
+
+                            <div class="auth-switch">
+                                <span>ยังไม่มีบัญชีสมาชิก?</span>
+                                <button type="button" id="signUpInline">สมัครสมาชิกทันที</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Sign Up Form -->
+                    <div class="form-container sign-up-container">
+                        <form action="#" id="register-form">
+                            <h1>สร้างบัญชีใหม่</h1>
+                            <span class="auth-subtitle">สมัครฟรี! เพื่อติดตามราคาทองคำ</span>
+
+                            <div class="input-group">
+                                <i class="fas fa-user input-icon"></i>
+                                <input type="text" id="register-name" placeholder="ชื่อ-นามสกุล" required />
+                            </div>
+
+                            <div class="input-group">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" id="register-email" placeholder="อีเมล" required />
+                            </div>
+
+                            <div class="input-group">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" id="register-password" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัว)"
+                                    required />
+                                <button type="button" class="toggle-password" data-target="register-password"
+                                    aria-label="แสดงรหัสผ่าน">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+
+                            <button type="button" id="register-button" class="primary-btn">ยืนยันการสมัคร</button>
+
+                            <div class="auth-switch">
+                                <span>มีบัญชีอยู่แล้ว?</span>
+                                <button type="button" id="signInInline">เข้าสู่ระบบ</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Forgot Password Form -->
+                    <div class="form-container forgot-password-container">
+                        <form action="#" id="reset-form">
+                            <h1>รีเซ็ตรหัสผ่าน</h1>
+                            <span
+                                class="auth-subtitle">ระบุอีเมลที่คุณใช้สมัครสมาชิก<br />เพื่อรับลิงก์รีเซ็ตรหัสผ่าน</span>
+
+                            <div class="input-group" style="margin-top: 10px;">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" id="forgot-email" placeholder="อีเมลของคุณ" required />
+                            </div>
+
+                            <button type="button" id="forgot-submit" class="primary-btn"
+                                style="margin-top: 10px;">ส่งลิงก์ตั้งรหัสใหม่</button>
+                            <p id="forgot-status"
+                                style="margin-top: 15px; font-size: 0.9rem; text-align: center; color: var(--brand-gold); height: 20px;">
+                            </p>
+
+                            <div class="auth-switch" style="margin-top: 15px;">
+                                <span>กลับไป</span>
+                                <button type="button" id="backToLogin">เข้าสู่ระบบ</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="profile-modal-overlay" onclick="hideProfileModal()">
+        <div class="profile-modal-box" onclick="event.stopPropagation()">
+            <span class="profile-modal-close" onclick="hideProfileModal()">&times;</span>
+            <h2 class="profile-modal-title"><i class="fas fa-user-circle"></i> ข้อมูลส่วนตัว</h2>
+
+            <!-- Tab Navigation -->
+            <div class="profile-tabs">
+                <button class="profile-tab active" onclick="switchProfileTab('info', this)">ข้อมูลผู้ใช้</button>
+                <button class="profile-tab" onclick="switchProfileTab('password', this)">เปลี่ยนรหัสผ่าน</button>
+                <button class="profile-tab" onclick="switchProfileTab('alerts', this)">แจ้งเตือนราคา</button>
+                <button class="profile-tab" onclick="switchProfileTab('forecasts', this)">ประวัติพยากรณ์</button>
+            </div>
+
+            <!-- Tab: ข้อมูลผู้ใช้ -->
+            <div class="profile-tab-content active" id="profile-tab-info">
+                <div class="profile-form-group">
+                    <label>ชื่อผู้ใช้งาน</label>
+                    <input type="text" id="profile-name-input" placeholder="ชื่อของคุณ">
+                </div>
+                <div class="profile-form-group">
+                    <label>อีเมล</label>
+                    <input type="email" id="profile-email-input" readonly>
+                    <small>* ไม่สามารถแก้ไขได้</small>
+                </div>
+                
+                <div class="profile-divider"></div>
+                
+                <div class="profile-form-group">
+                    <label><i class="fab fa-line" style="color: #00B900;"></i> LINE Messaging API</label>
+                    <div id="line-connect-container">
+                        <p class="profile-section-desc" style="margin-bottom: 8px;">รับแจ้งเตือนราคาทองและผลพยากรณ์ผ่าน LINE (แนะนำ ✅)</p>
+                        <button class="line-btn-connect" id="line-connect-btn">
+                            <i class="fab fa-line"></i> เชื่อมต่อบัญชี LINE
+                        </button>
+                    </div>
+                    <div id="line-connected-status" style="display: none;">
+                        <span class="status-badge success"><i class="fas fa-check-circle"></i> เชื่อมต่อแล้ว</span>
+                        <p class="profile-alert-sub" id="line-user-name">LINE User: --</p>
+                        <button class="btn-text-only" id="line-disconnect-btn">ยกเลิกการเชื่อมต่อ</button>
+                    </div>
+                </div>
+
+                <div class="profile-divider"></div>
+
+                <div class="profile-form-group">
+                    <label><i class="fas fa-globe" style="color: var(--brand-gold);"></i> Web Push Notification</label>
+                    <div id="push-connect-container">
+                        <p class="profile-section-desc" style="margin-bottom: 8px;">รับแจ้งเตือนผ่านบราวเซอร์ (แม้จะปิดหน้าเว็บ) ✅</p>
+                        <button class="push-btn-connect" id="push-subscribe-btn">
+                            <i class="fas fa-bell"></i> เปิดใช้งานการแจ้งเตือน
+                        </button>
+                    </div>
+                    <div id="push-status-container" style="display: none;">
+                        <span class="status-badge success"><i class="fas fa-check-circle"></i> เปิดใช้งานแล้ว</span>
+                        <p class="profile-alert-sub">คุณจะได้รับแจ้งเตือนบนอุปกรณ์นี้</p>
+                        <button class="btn-text-only" id="push-unsubscribe-btn">ปิดการแจ้งเตือน</button>
+                    </div>
+                </div>
+
+                <div class="profile-divider"></div>
+
+                <button class="profile-btn-save" id="profile-save-name">บันทึกชื่อ</button>
+                <p id="profile-name-status" class="profile-status-msg"></p>
+            </div>
+
+            <!-- Tab: เปลี่ยนรหัสผ่าน -->
+            <div class="profile-tab-content" id="profile-tab-password">
+                <div class="profile-form-group">
+                    <label>รหัสผ่านเดิม</label>
+                    <input type="password" id="profile-old-password" placeholder="รหัสผ่านเดิม">
+                </div>
+                <div class="profile-form-group">
+                    <label>รหัสผ่านใหม่</label>
+                    <input type="password" id="profile-new-password" placeholder="อย่างน้อย 6 ตัวอักษร">
+                </div>
+                <div class="profile-form-group">
+                    <label>ยืนยันรหัสผ่านใหม่</label>
+                    <input type="password" id="profile-confirm-password" placeholder="ยืนยันรหัสผ่านใหม่">
+                </div>
+                <button class="profile-btn-save" id="profile-save-password">เปลี่ยนรหัสผ่าน</button>
+                <p id="profile-password-status" class="profile-status-msg"></p>
+            </div>
+
+            <!-- Tab: แจ้งเตือนราคา -->
+            <div class="profile-tab-content" id="profile-tab-alerts">
+                <p class="profile-section-desc">รายการแจ้งเตือนราคาทองที่คุณตั้งไว้</p>
+                <div id="profile-alert-list" class="profile-alert-list">
+                    <p class="profile-loading">กำลังโหลด...</p>
+                </div>
+            </div>
+
+            <!-- Tab: ประวัติพยากรณ์ -->
+            <div class="profile-tab-content" id="profile-tab-forecasts">
+                <p class="profile-section-desc">ประวัติการพยากรณ์ด้วย AI ที่คุณบันทึกไว้</p>
+                <div id="profile-forecasts-list" class="profile-alert-list">
+                    <p class="profile-loading">กำลังโหลด...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- โหลด Font Awesome สำหรับไอคอน Social -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <footer class="site-footer">
+        <div class="footer-container">
+            <p> 2025 GOLD PRICE TODAY. All rights reserved.</p>
+            <p>ข้อมูลราคาทองคำอ้างอิงจากสมาคมค้าทองคำ</p>
+        </div>
+    </footer>
+
+    <!-- Library Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+    <!-- ลิงก์ไฟล์ของเรา (เรียงให้ถูก) -->
+    <script src="js/config.js"></script>
+    <script src="js/script.js?v=3" defer></script>
+
+</body>
+
+</html>
