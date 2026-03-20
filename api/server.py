@@ -47,6 +47,28 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
+
+@app.route("/", methods=["GET"])
+def root():
+    return jsonify(
+        ok=True,
+        service="gold-price-checker",
+        endpoints=[
+            "/api/thai-gold-price",
+            "/api/world-gold-price",
+            "/api/intraday?range=1d",
+            "/api/historical?days=365",
+            "/api/forecast?period=7&model=auto&hist_days=90",
+            "/api/jobs/run",
+            "/webhook",
+        ],
+    )
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify(ok=True, time=datetime.now().isoformat())
+
 # --- CONFIG (from .env) ---
 CONFIG = {
     "ALPHA_VANTAGE_KEY": os.getenv("ALPHA_VANTAGE_KEY", ""),
@@ -2320,5 +2342,7 @@ def line_webhook():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT", "5000"))
+    debug = (os.getenv("APP_DEBUG", "true").strip().lower() in ("1", "true", "yes", "on"))
+    app.run(host="0.0.0.0", port=port, debug=debug)
 # ===================== End of server.py =====================
