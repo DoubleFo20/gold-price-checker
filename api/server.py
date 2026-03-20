@@ -83,12 +83,23 @@ historical_cache = {"data": None, "ts": 0, "date": None}
 
 # -------------------- Database Utility --------------------
 def get_db_connection():
+    host = os.getenv("DB_HOST")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASS")
+    database = os.getenv("DB_NAME")
+    port = int(os.getenv("DB_PORT", 3306))
+
+    print("DB_HOST:", host)
+    print("DB_USER:", user)
+    print("DB_NAME:", database)
+    print("DB_PORT:", port)
+
     return pymysql.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASS', ''),
-        database=os.getenv('DB_NAME', 'goldapidb'),
-        port=int(os.getenv('DB_PORT', 3306)),
+        host=host,
+        user=user,
+        password=password,
+        database=database,
+        port=port,
         cursorclass=pymysql.cursors.DictCursor
     )
 
