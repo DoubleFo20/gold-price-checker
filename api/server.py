@@ -1,6 +1,6 @@
 # ===================== server.py =====================
 from flask import Flask, jsonify, request, send_from_directory
-import time, random, traceback, threading, os, smtplib, hmac, hashlib, base64, re
+import time, random, traceback, threading, os, smtplib, hmac, hashlib, base64, re, json
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
@@ -270,6 +270,364 @@ def php_compat_logout():
         resp = jsonify(success=False, message="Logout failed")
         resp.set_cookie("session_token", "", expires=0, path="/")
         return resp, 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/web-push/public-key", methods=["GET"])
+def web_push_public_key():
+    key = (os.getenv("VAPID_PUBLIC_KEY") or "").strip()
+    return jsonify(success=True, public_key=key), 200
+
+
+@app.route("/api/api/profile/update_push.php", methods=["POST", "OPTIONS"])
+def php_compat_update_push():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    token = request.cookies.get("session_token") or ""
+    conn = get_db_connection()
+    try:
+        user = _auth_get_user_by_session(conn, token)
+        if not user:
+            return jsonify(success=False, message="กรุณาเข้าสู่ระบบ"), 401
+
+        sub = request.get_json(silent=True)
+        sub_str = None if sub is None else json.dumps(sub, ensure_ascii=False)
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("UPDATE users SET push_subscription=%s WHERE id=%s", (sub_str, user["id"]))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            return jsonify(success=False, message=str(e)), 500
+
+        return jsonify(success=True, message="Subscription updated"), 200
+    finally:
+        conn.close()
+
+
+def _require_auth_user(conn):
+    token = request.cookies.get("session_token") or ""
+    user = _auth_get_user_by_session(conn, token)
+    if not user:
+        return None, (jsonify(success=False, message="กรุณาเข้าสู่ระบบ"), 401)
+    return user, None
+
+
+@app.route("/api/api/profile/generate_line_code.php", methods=["POST", "OPTIONS"])
+def php_compat_generate_line_code():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        code = str(random.randint(0, 999999)).zfill(6)
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE users SET verification_token=%s WHERE id=%s", (code, user["id"]))
+        conn.commit()
+        return jsonify(success=True, code=code, message="Code generated successfully"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="Server Error"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/profile/update_line.php", methods=["POST", "OPTIONS"])
+def php_compat_update_line():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    line_id = data.get("line_user_id")
+    display_name = data.get("display_name")
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "UPDATE users SET line_user_id=%s, line_display_name=%s WHERE id=%s",
+                (line_id, display_name, user["id"]),
+            )
+        conn.commit()
+        return jsonify(success=True, message="เชื่อมต่อ LINE สำเร็จ"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="Server Error"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/alerts/create.php", methods=["POST", "OPTIONS"])
+def php_compat_alerts_create():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    target_price = data.get("target_price")
+    alert_type = (data.get("alert_type") or "").strip()
+    gold_type = (data.get("gold_type") or "bar").strip()
+    email = (data.get("email") or "").strip()
+
+    try:
+        target_price = float(target_price)
+    except Exception:
+        target_price = None
+
+    if not target_price or target_price <= 0 or alert_type not in ("above", "below") or gold_type not in ("bar", "ornament", "world"):
+        return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO price_alerts (user_id, target_price, alert_type, gold_type, notify_email, channel_email, triggered)
+                    VALUES (%s, %s, %s, %s, %s, 1, 0)
+                    """,
+                    (user["id"], target_price, alert_type, gold_type, email or user.get("email")),
+                )
+            except Exception:
+                cursor.execute(
+                    """
+                    INSERT INTO price_alerts (user_id, target_price, alert_type, gold_type, email, triggered)
+                    VALUES (%s, %s, %s, %s, %s, 0)
+                    """,
+                    (user["id"], target_price, alert_type, gold_type, email or user.get("email")),
+                )
+        conn.commit()
+        return jsonify(success=True, message="ตั้งค่าการแจ้งเตือนสำเร็จ"), 200
+    except pymysql.err.IntegrityError:
+        return jsonify(success=False, message="มีรายการแจ้งเตือนนี้อยู่แล้ว"), 409
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="ไม่สามารถบันทึกการแจ้งเตือนได้"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/alerts/list.php", methods=["GET", "OPTIONS"])
+def php_compat_alerts_list():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM price_alerts WHERE user_id=%s ORDER BY created_at DESC",
+                (user["id"],),
+            )
+            items = cursor.fetchall() or []
+        return jsonify(success=True, items=items), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="โหลดไม่สำเร็จ"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/alerts/delete.php", methods=["POST", "OPTIONS"])
+def php_compat_alerts_delete():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    alert_id = data.get("id")
+    try:
+        alert_id = int(alert_id)
+    except Exception:
+        return jsonify(success=False, message="Invalid ID"), 400
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM price_alerts WHERE id=%s AND user_id=%s", (alert_id, user["id"]))
+        conn.commit()
+        return jsonify(success=True, message="Deleted"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="Delete failed"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/user/save_forecast.php", methods=["POST", "OPTIONS"])
+def php_compat_save_forecast():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    target_date = (data.get("target_date") or "")[:10]
+    trend = (data.get("trend") or "").strip()
+    max_price = data.get("max_price")
+    min_price = data.get("min_price")
+    confidence = data.get("confidence")
+    hist_days = data.get("hist_days")
+
+    try:
+        max_price = float(max_price)
+        min_price = float(min_price)
+        confidence = float(confidence)
+        hist_days = int(hist_days)
+    except Exception:
+        return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
+
+    if not target_date or not trend:
+        return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        forecast_date = datetime.now().strftime("%Y-%m-%d")
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO saved_forecasts (user_id, forecast_date, target_date, trend, max_price, min_price, confidence, hist_days)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (user["id"], forecast_date, target_date, trend, max_price, min_price, confidence, hist_days),
+            )
+        conn.commit()
+        return jsonify(success=True, message="บันทึกสำเร็จ!"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="บันทึกไม่สำเร็จ"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/user/get_saved_forecasts.php", methods=["GET", "OPTIONS"])
+def php_compat_get_saved_forecasts():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            try:
+                cursor.execute(
+                    """
+                    SELECT id, user_id, forecast_date, target_date, trend, max_price, min_price, confidence, hist_days,
+                           actual_max_price, actual_min_price, verified_at, created_at
+                    FROM saved_forecasts
+                    WHERE user_id=%s
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                    """,
+                    (user["id"],),
+                )
+            except Exception:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM saved_forecasts
+                    WHERE user_id=%s
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                    """,
+                    (user["id"],),
+                )
+            rows = cursor.fetchall() or []
+        return jsonify(success=True, data=rows), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="โหลดไม่สำเร็จ"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/notifications/list.php", methods=["GET", "OPTIONS"])
+def php_compat_notifications_list():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, title, message, type, is_read, link, created_at
+                FROM notifications
+                WHERE user_id=%s
+                ORDER BY created_at DESC
+                LIMIT 20
+                """,
+                (user["id"],),
+            )
+            items = cursor.fetchall() or []
+            cursor.execute("SELECT COUNT(*) AS c FROM notifications WHERE user_id=%s AND is_read=0", (user["id"],))
+            unread = cursor.fetchone() or {"c": 0}
+        return jsonify(success=True, data=items, unread_count=int(unread.get("c") or 0)), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="โหลดไม่สำเร็จ"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/notifications/mark_read.php", methods=["POST", "OPTIONS"])
+def php_compat_notifications_mark_read():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    notif_id = data.get("id")
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            if notif_id == "all":
+                cursor.execute("UPDATE notifications SET is_read=1 WHERE user_id=%s", (user["id"],))
+            else:
+                try:
+                    nid = int(notif_id)
+                except Exception:
+                    return jsonify(success=False, message="Invalid ID"), 400
+                cursor.execute("UPDATE notifications SET is_read=1 WHERE id=%s AND user_id=%s", (nid, user["id"]))
+        conn.commit()
+        return jsonify(success=True, message="Updated successfully"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="Server Error"), 500
     finally:
         conn.close()
 

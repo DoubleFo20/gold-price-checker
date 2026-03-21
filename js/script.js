@@ -1755,6 +1755,26 @@ async function loadPushStatus() {
     }
 }
 
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function getVapidPublicKey() {
+    try {
+        const res = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/web-push/public-key`);
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data && data.public_key) return data.public_key;
+    } catch (e) { }
+    return null;
+}
+
 // ผูกปุ่มสมัคร Push
 document.getElementById('push-subscribe-btn')?.addEventListener('click', async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -1776,10 +1796,16 @@ document.getElementById('push-subscribe-btn')?.addEventListener('click', async (
             return;
         }
 
+        const publicKey = await getVapidPublicKey();
+        if (!publicKey) {
+            alert('ยังไม่ได้ตั้งค่า VAPID_PUBLIC_KEY บนเซิร์ฟเวอร์');
+            return;
+        }
+
         // สมัคร (Subscribe)
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: 'BC_your_public_vapid_key_here' // ต้องเป็น Public Key จริง
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
         });
 
         savePushSubscription(subscription);
@@ -1800,6 +1826,8 @@ document.getElementById('push-unsubscribe-btn')?.addEventListener('click', async
         // แจ้ง Server ให้ลบ Subscription
         await fetch('api/api/profile/update_push.php', {
             method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(null)
         });
         loadPushStatus();
@@ -1811,6 +1839,8 @@ async function savePushSubscription(subscription) {
     try {
         await fetch('api/api/profile/update_push.php', {
             method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(subscription)
         });
     } catch (e) {
