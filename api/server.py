@@ -1,5 +1,5 @@
 # ===================== server.py =====================
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 import time, random, traceback, threading, os, smtplib, hmac, hashlib, base64, re
 import requests
 from bs4 import BeautifulSoup
@@ -33,6 +33,8 @@ except ImportError:
     HAVE_ARIMA = False
     print("⚠️  statsmodels not installed — ARIMA unavailable, using sklearn fallback")
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 app = Flask(__name__)
 
 ALLOWED_ORIGINS = ['http://localhost', 'http://127.0.0.1']
@@ -50,6 +52,11 @@ def after_request(response):
 
 @app.route("/", methods=["GET"])
 def root():
+    return send_from_directory(PROJECT_ROOT, "index.html")
+
+
+@app.route("/api/meta", methods=["GET"])
+def api_meta():
     return jsonify(
         ok=True,
         service="gold-price-checker",
@@ -68,6 +75,16 @@ def root():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify(ok=True, time=datetime.now().isoformat())
+
+
+@app.route("/<path:path>", methods=["GET"])
+def static_files(path):
+    if path.startswith("api/"):
+        return jsonify(ok=False, message="Not Found"), 404
+    full_path = os.path.join(PROJECT_ROOT, path)
+    if os.path.isfile(full_path):
+        return send_from_directory(PROJECT_ROOT, path)
+    return send_from_directory(PROJECT_ROOT, "index.html")
 
 # --- CONFIG (from .env) ---
 CONFIG = {
