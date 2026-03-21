@@ -386,6 +386,21 @@ header p {
 
 /* Responsive */
 @media (max-width: 768px) {
+    .container {
+        padding: 12px;
+    }
+
+    .section {
+        padding: 16px;
+        margin-top: 12px;
+        margin-bottom: 20px;
+    }
+
+    .section h2 {
+        font-size: 1.5em;
+        margin-bottom: 18px;
+    }
+
     .nav-container {
         flex-direction: column;
         align-items: stretch;
@@ -448,6 +463,83 @@ header p {
 
     header p {
         font-size: 1em;
+    }
+
+    /* Live chart sizing */
+    #thai-live-container,
+    #world-live-container {
+        height: 360px !important;
+    }
+
+    .chart-toggle-group {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start;
+    }
+
+    .chart-toggle-btn {
+        flex: 0 0 auto;
+        padding: 10px 12px;
+        font-size: 0.9em;
+        white-space: nowrap;
+    }
+
+    .time-range-btn {
+        padding: 8px 12px;
+        font-size: 0.9em;
+        min-width: 44px;
+    }
+
+    /* Cards */
+    .price-cards-container {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .price-card {
+        padding: 16px;
+    }
+
+    .price-card .card-title {
+        font-size: 0.95rem;
+        margin-bottom: 6px;
+    }
+
+    .price-card .card-value {
+        font-size: 1.6rem;
+    }
+
+    /* Calculator tables */
+    .weight-tables-container {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .weight-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+}
+
+@media (max-width: 400px) {
+    .nav-logo {
+        font-size: 1.25em;
+    }
+
+    .section h2 {
+        font-size: 1.35em;
+    }
+
+    #thai-live-container,
+    #world-live-container {
+        height: 320px !important;
+    }
+
+    .price-cards-container {
+        grid-template-columns: 1fr;
     }
 }
 
