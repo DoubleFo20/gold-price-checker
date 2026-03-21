@@ -10,6 +10,12 @@ from dotenv import load_dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+try:
+    import bcrypt
+    HAVE_BCRYPT = True
+except Exception:
+    HAVE_BCRYPT = False
+
 # Load .env from the same directory as server.py
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
@@ -85,6 +91,187 @@ def static_files(path):
     if os.path.isfile(full_path):
         return send_from_directory(PROJECT_ROOT, path)
     return send_from_directory(PROJECT_ROOT, "index.html")
+
+
+def _cookie_secure() -> bool:
+    v = (os.getenv("COOKIE_SECURE") or "").strip().lower()
+    if v in ("1", "true", "yes", "on"):
+        return True
+    if v in ("0", "false", "no", "off"):
+        return False
+    return bool(request.is_secure)
+
+
+def _bcrypt_verify(password: str, password_hash: str) -> bool:
+    if not HAVE_BCRYPT:
+        raise RuntimeError("bcrypt is required for password verification")
+    if not password_hash:
+        return False
+    h = password_hash
+    if h.startswith("$2y$"):
+        h = "$2b$" + h[4:]
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), h.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def _bcrypt_hash(password: str) -> str:
+    if not HAVE_BCRYPT:
+        raise RuntimeError("bcrypt is required for password hashing")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+def _auth_get_user_by_session(conn, token: str):
+    if not token:
+        return None
+    with conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT u.*
+            FROM sessions s
+            INNER JOIN users u ON u.id = s.user_id
+            WHERE s.token = %s AND s.expires_at > NOW() AND u.is_active = 1
+            LIMIT 1
+            """,
+            (token,),
+        )
+        return cursor.fetchone()
+
+
+@app.route("/api/api/auth/login.php", methods=["POST", "OPTIONS"])
+def php_compat_login():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify(success=False, message="กรุณากรอกอีเมลและรหัสผ่าน"), 400
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM users WHERE email=%s AND is_active=1 LIMIT 1", (email,))
+            user = cursor.fetchone()
+
+        if not user or not _bcrypt_verify(password, user.get("password_hash") or ""):
+            return jsonify(success=False, message="อีเมลหรือรหัสผ่านไม่ถูกต้อง"), 401
+
+        token = os.urandom(32).hex()
+        expires_ts = int(time.time()) + (86400 * 7)
+        expires_at_db = datetime.fromtimestamp(expires_ts).strftime("%Y-%m-%d %H:%M:%S")
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent) VALUES (%s, %s, %s, %s, %s)",
+                (
+                    user["id"],
+                    token,
+                    expires_at_db,
+                    request.headers.get("X-Forwarded-For", request.remote_addr),
+                    request.headers.get("User-Agent", "")[:1000],
+                ),
+            )
+        conn.commit()
+
+        resp = jsonify(success=True, message="เข้าสู่ระบบสำเร็จ!", user={k: v for k, v in user.items() if k != "password_hash"})
+        resp.set_cookie(
+            "session_token",
+            token,
+            expires=expires_ts,
+            path="/",
+            secure=_cookie_secure(),
+            httponly=True,
+            samesite="Lax",
+        )
+        return resp, 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="Server error while processing login."), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/auth/register.php", methods=["POST", "OPTIONS"])
+def php_compat_register():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    name = (data.get("name") or "").strip()
+
+    if (not email) or ("@" not in email) or (not name) or (not password) or (len(password) < 6):
+        return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง กรุณากรอกข้อมูลให้ครบถ้วน"), 400
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT id FROM users WHERE email=%s LIMIT 1", (email,))
+            if cursor.fetchone():
+                return jsonify(success=False, message="อีเมลนี้ถูกใช้งานแล้ว"), 409
+
+            pw_hash = _bcrypt_hash(password)
+            cursor.execute(
+                "INSERT INTO users (email, password_hash, name, role, is_active) VALUES (%s, %s, %s, 'user', 1)",
+                (email, pw_hash, name),
+            )
+        conn.commit()
+        return jsonify(success=True, message="สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ"), 201
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="เกิดข้อผิดพลาดในการสมัครสมาชิก"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/auth/check_session.php", methods=["POST", "OPTIONS"])
+def php_compat_check_session():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    token = request.cookies.get("session_token") or ""
+    conn = get_db_connection()
+    try:
+        user = _auth_get_user_by_session(conn, token)
+        if user:
+            u = {k: v for k, v in user.items() if k != "password_hash"}
+            return jsonify(success=True, authenticated=True, user=u), 200
+        resp = jsonify(success=True, authenticated=False)
+        resp.set_cookie("session_token", "", expires=0, path="/")
+        return resp, 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, authenticated=False, message="Server error during session check"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/auth/logout.php", methods=["POST", "OPTIONS"])
+def php_compat_logout():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    token = request.cookies.get("session_token") or ""
+    conn = get_db_connection()
+    try:
+        if token:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM sessions WHERE token=%s", (token,))
+            conn.commit()
+        resp = jsonify(success=True, message="Logged out")
+        resp.set_cookie("session_token", "", expires=0, path="/")
+        return resp, 200
+    except Exception:
+        traceback.print_exc()
+        resp = jsonify(success=False, message="Logout failed")
+        resp.set_cookie("session_token", "", expires=0, path="/")
+        return resp, 500
+    finally:
+        conn.close()
 
 # --- CONFIG (from .env) ---
 CONFIG = {
