@@ -1530,9 +1530,11 @@ def api_intraday():
                             label_str = index.strftime('%d %b') # Shows '15 Mar'
                             
                         labels.append(label_str)
-                        usd_spot = row['Close'] * 10.0
-                        thb_spot = usd_spot * factor
-                        world_values.append(round(usd_spot, 2))
+                        usd_spot = to_float(row.get('Close')) if hasattr(row, "get") else to_float(row['Close'])
+                        if usd_spot is None:
+                            continue
+                        thb_spot = float(usd_spot) * factor
+                        world_values.append(round(float(usd_spot), 2))
                         thai_values.append(round(thb_spot, 2))
                         
                         # Generate a realistic historical association price (typically ~100-200 baht below spot or closely mirroring)
@@ -1541,6 +1543,19 @@ def api_intraday():
                         assoc_values.append(assoc_historical)
                         
                     source = f"Yahoo Finance ({time_range})"
+                    
+                    # Anchor to real Thai bar sell to prevent crazy scaling/jumps (esp. on free yfinance ranges)
+                    try:
+                        real_bar_sell = None
+                        if thai_cache.get("data") and thai_cache["data"].get("bar_sell") is not None:
+                            real_bar_sell = float(thai_cache["data"]["bar_sell"])
+                        if real_bar_sell and thai_values:
+                            basis = real_bar_sell - float(thai_values[-1])
+                            thai_values = [round(float(v) + basis, 2) for v in thai_values]
+                            assoc_values = [round((float(v) + basis) / 50.0) * 50 - 50 for v in assoc_values]
+                            assoc_values[-1] = real_bar_sell
+                    except Exception:
+                        pass
             except Exception as e:
                 print(f"Intraday fetch error for {time_range}: {e}")
         

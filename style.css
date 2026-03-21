@@ -1450,11 +1450,25 @@ header p {
     }
 
     .auth-form-area {
-        padding: 30px 20px;
+        padding: 56px 20px 24px;
+        align-items: stretch;
+        justify-content: flex-start;
     }
 
     .form-container {
-        padding: 20px;
+        position: static;
+        height: auto;
+        padding: 0;
+        justify-content: flex-start;
+    }
+
+    .form-container form {
+        max-width: 100%;
+        text-align: left;
+    }
+
+    .form-container h1 {
+        font-size: 1.6rem;
     }
 
     .input-group input {
