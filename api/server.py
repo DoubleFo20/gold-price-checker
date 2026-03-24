@@ -1744,6 +1744,41 @@ def api_forecast():
         
         forecasts = clamped_forecasts
 
+        recent_array = np.array(recent_values, dtype=float)
+        recent_deltas = np.diff(recent_array) if len(recent_array) > 1 else np.array([])
+        short_momentum = float(np.mean(recent_deltas[-5:])) if len(recent_deltas) >= 5 else (float(np.mean(recent_deltas)) if len(recent_deltas) else 0.0)
+        medium_momentum = float(np.mean(recent_deltas[-20:])) if len(recent_deltas) >= 20 else short_momentum
+        momentum = (0.7 * short_momentum) + (0.3 * medium_momentum)
+        volatility = float(np.std(recent_deltas[-20:])) if len(recent_deltas) >= 5 else (float(np.std(recent_deltas)) if len(recent_deltas) else 0.0)
+
+        raw_weight = 0.88 if period == 1 else 0.74 if period <= 7 else 0.64 if period <= 14 else 0.56
+        trend_boost = 1.0 if period == 1 else 1.08 if period <= 7 else 1.16 if period <= 14 else 1.22
+        base_band = max(volatility, last_actual * 0.0015)
+
+        smoothed_forecasts = []
+        smoothed_upper = []
+        smoothed_lower = []
+        for i, p in enumerate(forecasts):
+            days_from_now = i + 1
+            trend_projection = last_actual + (momentum * days_from_now * trend_boost)
+            blend_weight = max(0.35, raw_weight - (0.02 * min(days_from_now, 10)))
+            blended = (blend_weight * float(p)) + ((1.0 - blend_weight) * trend_projection)
+
+            max_move_pct = 0.006 + (0.0012 * days_from_now)
+            max_move = last_actual * max_move_pct
+            clamped_p = max(last_actual - max_move, min(last_actual + max_move, blended))
+            smoothed_forecasts.append(clamped_p)
+
+            band = max(base_band * np.sqrt(days_from_now), abs(momentum) * days_from_now * 0.75, last_actual * 0.0025)
+            upper_candidate = float(upper_bound[i]) if i < len(upper_bound) else clamped_p
+            lower_candidate = float(lower_bound[i]) if i < len(lower_bound) else clamped_p
+            smoothed_upper.append(max(clamped_p + band, upper_candidate))
+            smoothed_lower.append(max(0.0, min(clamped_p - band, lower_candidate)))
+
+        forecasts = smoothed_forecasts
+        upper_bound = smoothed_upper
+        lower_bound = smoothed_lower
+
         # Clamp to positive values
         forecasts = [max(0.0, round(v, 2)) for v in forecasts]
         upper_bound = [max(0.0, round(v, 2)) for v in upper_bound]

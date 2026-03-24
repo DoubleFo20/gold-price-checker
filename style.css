@@ -416,6 +416,20 @@ body.modal-open {
     overflow: hidden;
 }
 
+#news-container-placeholder,
+#live-chart-container,
+#historical-chart-container,
+#calculator-container,
+#forecast-container,
+#alerts-container,
+#price-today-container {
+    scroll-margin-top: 120px;
+}
+
+.mobile-quick-nav {
+    display: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .container {
@@ -508,6 +522,70 @@ body.modal-open {
         background: transparent;
         padding-left: 0;
         box-shadow: none;
+    }
+
+    .nav-item-dropdown .login-btn,
+    .nav-notification-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .dropdown-menu,
+    .notif-dropdown {
+        position: static;
+        width: 100%;
+        min-width: 0;
+        margin-top: 8px;
+        border-radius: 14px;
+        box-shadow: none;
+    }
+
+    .dropdown-menu a,
+    .notif-dropdown a {
+        width: 100%;
+    }
+
+    .mobile-quick-nav {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(234, 234, 234, 0.9);
+        border-radius: 18px;
+        box-shadow: 0 18px 40px rgba(17, 24, 39, 0.18);
+        z-index: 1200;
+        backdrop-filter: blur(12px);
+    }
+
+    .quick-nav-pill {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 14px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        background: var(--surface-secondary);
+        border: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .quick-nav-pill:active {
+        transform: translateY(1px);
+    }
+
+    .container {
+        padding-bottom: 96px;
     }
 
     .tab button {

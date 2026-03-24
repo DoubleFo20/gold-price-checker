@@ -2023,6 +2023,7 @@ async function initializeApp() {
     if (userBtn) {
         userBtn.addEventListener('click', function (event) {
             event.preventDefault();
+            event.stopPropagation();
             const parent = userBtn.closest('.nav-item-dropdown');
             parent?.classList.toggle('show');
         });
@@ -2054,6 +2055,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     navMenu?.querySelectorAll('a').forEach((link) => {
+        if (link.id === 'userBtn' || link.id === 'notifBtn') return;
+        if (link.closest('.nav-item-dropdown')) return;
+        link.addEventListener('click', closeMobileNav);
+    });
+
+    document.querySelectorAll('.mobile-quick-nav a').forEach((link) => {
         link.addEventListener('click', closeMobileNav);
     });
 
