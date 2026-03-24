@@ -26,10 +26,14 @@ const _pythonApiUrl = (_isLocalhost || _forceLocalApi)
       isPlaceholderApiUrl(_explicitApiUrl) ? window.location.origin : _explicitApiUrl
     );
 
+const _phpApiBase = (_isLocalhost && !_forceLocalApi)
+  ? 'api/api'
+  : `${_pythonApiUrl}/api/api`;
+
 window.APP_CONFIG = {
   // Flask (ราคาทองคำ/ข่าวสาร/ข้อมูลย้อนหลัง)
   PYTHON_API_URL: _pythonApiUrl,
-  PHP_API_BASE: 'api/api',
+  PHP_API_BASE: _phpApiBase,
   LEGACY_LOCAL_MODE: _legacyLocalMode,
   DISABLE_SW: _disableSw,
   // endpoint ของฝั่ง Flask (ใช้ประกอบ path)
