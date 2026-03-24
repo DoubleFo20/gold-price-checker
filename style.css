@@ -439,6 +439,76 @@ body.modal-open {
     display: none;
 }
 
+html.legacy-local-mode .mobile-quick-nav {
+    display: none !important;
+}
+
+html.legacy-local-mode .container {
+    padding-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    html.legacy-local-mode .nav-toggle {
+        display: none !important;
+    }
+
+    html.legacy-local-mode .nav-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    html.legacy-local-mode .nav-logo {
+        width: 100%;
+        text-align: left;
+    }
+
+    html.legacy-local-mode .nav-menu {
+        position: static;
+        display: flex !important;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 8px;
+        padding: 0;
+        margin-top: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        max-height: none;
+        overflow: visible;
+    }
+
+    html.legacy-local-mode .nav-menu li {
+        width: auto;
+        flex: 1 1 calc(50% - 8px);
+    }
+
+    html.legacy-local-mode .nav-menu a,
+    html.legacy-local-mode .nav-menu button {
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    html.legacy-local-mode .nav-menu li#notification-menu-container,
+    html.legacy-local-mode .nav-menu li#user-menu-container,
+    html.legacy-local-mode .nav-menu li#login-menu-container {
+        order: initial;
+    }
+
+    html.legacy-local-mode .nav-menu li#notification-menu-container,
+    html.legacy-local-mode .nav-menu li#user-menu-container,
+    html.legacy-local-mode .nav-menu li#login-menu-container {
+        flex-basis: calc(50% - 8px);
+    }
+
+    html.legacy-local-mode .nav-menu li#user-menu-container.show {
+        flex-basis: 100%;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .container {

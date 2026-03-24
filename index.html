@@ -5,8 +5,17 @@
     <meta charset="UTF-8">
     <title>GOLD PRICE TODAY</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+            if (isLocalHost && params.get('legacy_local') === '1') {
+                document.documentElement.classList.add('legacy-local-mode');
+            }
+        })();
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=8">
+    <link rel="stylesheet" href="style.css?v=9">
 </head>
 
 <body>
@@ -339,8 +348,8 @@
 
 
     <!-- ลิงก์ไฟล์ของเรา (เรียงให้ถูก) -->
-    <script src="js/config.js?v=9"></script>
-    <script src="js/script.js?v=13" defer></script>
+    <script src="js/config.js?v=10"></script>
+    <script src="js/script.js?v=14" defer></script>
 
 </body>
 

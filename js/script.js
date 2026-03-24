@@ -42,6 +42,16 @@ function buildPythonApiUrl(path) {
     return `${base}${suffix}`;
 }
 
+if (window.APP_CONFIG?.LEGACY_LOCAL_MODE) {
+    document.documentElement.classList.add('legacy-local-mode');
+    document.body?.classList.add('legacy-local-mode');
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations()
+            .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+            .catch(() => { });
+    }
+}
+
 
 function showLoginModal() {
     const modal = document.getElementById('loginModal');
@@ -1749,6 +1759,7 @@ async function saveLineId(lineId, displayName) {
    WEB PUSH NOTIFICATIONS
    ========================================================= */
 async function initWebPush() {
+    if (window.APP_CONFIG?.DISABLE_SW) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     
     try {

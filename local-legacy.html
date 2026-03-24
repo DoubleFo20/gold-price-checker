@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Legacy Mode</title>
+    <script>
+        window.location.replace('./?legacy_local=1');
+    </script>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: Prompt, system-ui, sans-serif;
+            background: #f7f7f7;
+            color: #1a1a1a;
+        }
+
+        .card {
+            width: min(92vw, 560px);
+            background: #fff;
+            border: 1px solid #eaeaea;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 18px 40px rgba(17, 24, 39, 0.08);
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            color: #b8860b;
+        }
+
+        p, li {
+            line-height: 1.6;
+        }
+
+        a {
+            color: #b8860b;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Local Legacy Mode</h1>
+        <p>กำลังเปิดหน้า local แบบเก่าสำหรับ XAMPP...</p>
+        <p>ถ้าไม่เปลี่ยนหน้าอัตโนมัติ ให้กด <a href="./?legacy_local=1">เปิดโหมด local แบบเก่า</a></p>
+        <p>ก่อนใช้งาน ให้เปิด:</p>
+        <ul>
+            <li>Apache + MySQL ใน XAMPP</li>
+            <li>`python api/server.py` สำหรับ API ฝั่ง Python</li>
+        </ul>
+    </div>
+</body>
+</html>
