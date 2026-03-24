@@ -17,6 +17,13 @@ try:
 except Exception:
     HAVE_BCRYPT = False
 
+try:
+    from pywebpush import webpush, WebPushException
+    HAVE_WEBPUSH = True
+except Exception:
+    HAVE_WEBPUSH = False
+    WebPushException = Exception
+
 # Load .env from the same directory as server.py
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
@@ -2420,6 +2427,156 @@ def send_forecast_result_email_smtp(payload):
         print(f"Forecast result SMTP send failed to {to_email}: {e}")
         return False
 
+
+def _save_in_app_notification(conn, user_id, title, message, notif_type="price_alert", link="#alerts-container") -> bool:
+    if not user_id:
+        return False
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO notifications (user_id, title, message, type, link)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (user_id, title, message, notif_type, link),
+            )
+        return True
+    except Exception as e:
+        print(f"Failed to save in-app notification: {e}")
+        return False
+
+
+def _send_web_push(push_subscription, title: str, body: str, url: str = "#alerts-container") -> bool:
+    if not HAVE_WEBPUSH:
+        print("pywebpush not installed. Skip web push sending.")
+        return False
+
+    public_key = (os.getenv("VAPID_PUBLIC_KEY") or "").strip()
+    private_key = (os.getenv("VAPID_PRIVATE_KEY") or "").strip()
+    subject = (os.getenv("VAPID_SUBJECT") or "").strip()
+    if not public_key or not private_key or not subject:
+        print("VAPID config incomplete. Skip web push sending.")
+        return False
+
+    subscription = push_subscription
+    if isinstance(subscription, str):
+        try:
+            subscription = json.loads(subscription)
+        except Exception:
+            print("Invalid push subscription JSON. Skip web push sending.")
+            return False
+
+    if not isinstance(subscription, dict) or not subscription.get("endpoint"):
+        return False
+
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "url": url,
+            "icon": "/img/logo.png",
+            "badge": "/img/logo.png",
+        },
+        ensure_ascii=False,
+    )
+
+    try:
+        webpush(
+            subscription_info=subscription,
+            data=payload,
+            vapid_private_key=private_key,
+            vapid_claims={"sub": subject},
+            ttl=300,
+        )
+        return True
+    except WebPushException as e:
+        print(f"Web push failed: {e}")
+        return False
+    except Exception as e:
+        print(f"Unexpected web push failure: {e}")
+        return False
+
+
+def _build_price_alert_message(alert, current_price):
+    ptype = alert.get("gold_type", "bar")
+    atype = alert.get("alert_type", "above")
+    target_price = float(alert.get("target_price") or 0)
+    user_name = alert.get("name") or "ลูกค้า"
+
+    type_map = {
+        "bar": "ทองคำแท่ง",
+        "ornament": "ทองรูปพรรณ",
+        "world": "ทองโลก (USD/oz)",
+    }
+    type_text = type_map.get(ptype, ptype)
+    condition_text = "สูงกว่า หรือ เท่ากับ" if atype == "above" else "ต่ำกว่า หรือ เท่ากับ"
+    is_world = ptype == "world"
+    money_prefix = "$" if is_world else "฿"
+    current_text = f"{float(current_price or 0):,.2f}"
+    target_text = f"{target_price:,.2f}"
+
+    title = f"🔔 แจ้งเตือนราคาทอง: {type_text}"
+    body = f"{type_text} {condition_text} {money_prefix}{target_text} แล้ว (ตอนนี้ {money_prefix}{current_text})"
+    line_text = (
+        f"🔔 แจ้งเตือนราคาทอง\n"
+        f"- ผู้ใช้: {user_name}\n"
+        f"- ประเภท: {type_text}\n"
+        f"- เงื่อนไข: {condition_text} {money_prefix}{target_text}\n"
+        f"- ราคาปัจจุบัน: {money_prefix}{current_text}"
+    )
+    return {
+        "title": title,
+        "body": body,
+        "line_text": line_text,
+    }
+
+
+def _deliver_price_alert(conn, alert, current_price, stats=None):
+    stats = stats if isinstance(stats, dict) else None
+    delivery = {
+        "notified": False,
+        "line_sent": False,
+        "push_sent": False,
+        "email_sent": False,
+        "in_app_saved": False,
+    }
+
+    message = _build_price_alert_message(alert, current_price)
+    delivery["in_app_saved"] = _save_in_app_notification(
+        conn,
+        alert.get("user_id"),
+        message["title"],
+        message["body"],
+        notif_type="price_alert",
+        link="#alerts-container",
+    )
+    if stats is not None and delivery["in_app_saved"]:
+        stats["notifications_saved"] = stats.get("notifications_saved", 0) + 1
+
+    line_user_id = (alert.get("line_user_id") or "").strip()
+    if line_user_id:
+        delivery["line_sent"] = _line_push(line_user_id, message["line_text"])
+        if stats is not None and delivery["line_sent"]:
+            stats["line_sent"] = stats.get("line_sent", 0) + 1
+
+    if not delivery["line_sent"] and alert.get("push_subscription"):
+        delivery["push_sent"] = _send_web_push(
+            alert.get("push_subscription"),
+            message["title"],
+            message["body"],
+            url="#alerts-container",
+        )
+        if stats is not None and delivery["push_sent"]:
+            stats["push_sent"] = stats.get("push_sent", 0) + 1
+
+    if not delivery["line_sent"] and not delivery["push_sent"]:
+        delivery["email_sent"] = send_alert_email_smtp(alert, current_price)
+        if stats is not None and delivery["email_sent"]:
+            stats["email_sent"] = stats.get("email_sent", 0) + 1
+
+    delivery["notified"] = delivery["line_sent"] or delivery["push_sent"] or delivery["email_sent"]
+    return delivery
+
 @app.route('/api/forecast/send-email', methods=['POST', 'OPTIONS'])
 def send_forecast_email():
     if request.method == 'OPTIONS':
@@ -2484,7 +2641,9 @@ def run_scheduled_jobs_once():
         "triggered_alerts": 0,
         "verified_forecasts": 0,
         "line_sent": 0,
+        "push_sent": 0,
         "email_sent": 0,
+        "notifications_saved": 0,
     }
 
     try:
@@ -2523,12 +2682,13 @@ def run_scheduled_jobs_once():
     try:
         with conn.cursor() as cursor:
             # ---- Price Alerts ----
+            _ensure_users_columns(conn, ("line_user_id", "push_subscription"))
             alerts = []
             try:
                 try:
                     cursor.execute(
                         """
-                        SELECT pa.*, u.name, u.email, u.line_user_id,
+                        SELECT pa.*, u.name, u.email, u.line_user_id, u.push_subscription,
                                COALESCE(pa.notify_email, u.email) AS receiver_email
                         FROM price_alerts pa
                         INNER JOIN users u ON u.id = pa.user_id
@@ -2580,19 +2740,9 @@ def run_scheduled_jobs_once():
                         f"- ราคาปัจจุบัน: {money_prefix}{curr:,.2f}"
                     )
 
-                    line_sent = False
-                    if line_user_id:
-                        line_sent = _line_push(line_user_id, msg)
-                        if line_sent:
-                            stats["line_sent"] += 1
+                    delivery = _deliver_price_alert(conn, alert, curr, stats=stats)
 
-                    email_sent = False
-                    if not line_sent:
-                        email_sent = send_alert_email_smtp(alert, curr)
-                        if email_sent:
-                            stats["email_sent"] += 1
-
-                    if line_sent or email_sent:
+                    if delivery["notified"]:
                         cursor.execute(
                             "UPDATE price_alerts SET triggered=1, triggered_at=NOW() WHERE id=%s",
                             (alert["id"],),
@@ -2873,9 +3023,21 @@ def background_alert_checker():
         except Exception as e:
             print(f"Error executing background cron: {e}")
 
+
+def unified_background_alert_checker():
+    """ตรวจสอบ alerts/forecast แบบ background โดยใช้ลอจิกเดียวกับ job endpoint"""
+    while True:
+        try:
+            time.sleep(60)
+            result = run_scheduled_jobs_once()
+            if not result.get("ok", False):
+                print(f"Background checker warning: {result}")
+        except Exception as e:
+            print(f"Error executing unified background cron: {e}")
+
 # Start the background checker
 if (os.getenv("ENABLE_BACKGROUND_CHECKER") or "true").strip().lower() in ("1", "true", "yes", "on"):
-    threading.Thread(target=background_alert_checker, daemon=True).start()
+    threading.Thread(target=unified_background_alert_checker, daemon=True).start()
 else:
     print("Background checker disabled (ENABLE_BACKGROUND_CHECKER=false)")
 
@@ -3032,15 +3194,16 @@ def _line_get_display_name(line_user_id: str):
 def _line_menu_text() -> str:
     return (
         "เมนูคำสั่ง (พิมพ์ได้เลย)\n"
-        "- ราคา : ดูราคาล่าสุด (จากระบบ cache)\n"
+        "- ราคา : ดูราคาล่าสุดทั้งหมด\n"
+        "- ราคาทองโลก : ดูราคาทองโลก (XAUUSD)\n"
         "- สถานะ : ดูว่าเชื่อมบัญชีแล้วหรือยัง\n"
-        "- LINK-123456 : เชื่อมบัญชี (ใช้รหัสจากหน้าเว็บ)\n"
+        "- LINK-123456 หรือ 123456 : เชื่อมบัญชี (ใช้รหัสจากหน้าเว็บ)\n"
         "- ยกเลิก : ยกเลิกการเชื่อมต่อ LINE\n"
         "- ช่วยเหลือ : ดูเมนูนี้อีกครั้ง"
     )
 
 
-def _line_get_cached_prices_text():
+def _line_get_cached_prices_text(price_mode: str = "all"):
     try:
         thai = thai_cache.get("data") or {}
         world = world_cache.get("data") or {}
@@ -3050,15 +3213,19 @@ def _line_get_cached_prices_text():
             return None
 
         parts = []
-        if have_thai:
+        mode = (price_mode or "all").lower()
+        include_thai = mode in ("all", "thai")
+        include_world = mode in ("all", "world")
+
+        if include_thai and have_thai:
             parts.append("ราคาทองไทย (ล่าสุด)")
             parts.append(f"- ทองคำแท่ง รับซื้อ: ฿{float(thai['bar_buy']):,.2f} | ขายออก: ฿{float(thai['bar_sell']):,.2f}")
             parts.append(
                 f"- ทองรูปพรรณ รับซื้อ: ฿{float(thai['ornament_buy']):,.2f} | ขายออก: ฿{float(thai['ornament_sell']):,.2f}"
             )
-        if have_world:
+        if include_world and have_world:
             parts.append(f"ทองโลก (XAUUSD): ${float(world['price_usd_per_ounce']):,.2f}/oz")
-        if thai.get("date") or thai.get("update_round"):
+        if include_thai and (thai.get("date") or thai.get("update_round")):
             parts.append(f"อัปเดต: {thai.get('date','')} {thai.get('update_round','')}".strip())
         return "\n".join(parts)
     except Exception:
@@ -3091,7 +3258,7 @@ def _line_status_text(conn, line_user_id: str) -> str:
     if user:
         name = user.get("name") or "ผู้ใช้"
         return f"✅ เชื่อมต่อแล้วกับบัญชี: {name}"
-    return "ยังไม่ได้เชื่อมต่อบัญชีครับ\nพิมพ์ LINK-123456 (รับรหัสจากหน้าเว็บ) เพื่อเชื่อมบัญชี"
+    return "ยังไม่ได้เชื่อมต่อบัญชีครับ\nพิมพ์ LINK-123456 หรือ 123456 (รับรหัสจากหน้าเว็บ) เพื่อเชื่อมบัญชี"
 
 
 @app.route("/webhook", methods=["POST", "GET"])
@@ -3131,7 +3298,7 @@ def line_webhook():
                 continue
 
             if t in ("price", "ราคา", "ราคาทอง", "ทอง", "gold"):
-                price_text = _line_get_cached_prices_text()
+                price_text = _line_get_cached_prices_text("all")
                 _line_reply(
                     reply_token,
                     price_text
@@ -3139,8 +3306,17 @@ def line_webhook():
                 )
                 continue
 
+            if t in ("ราคาทองโลก", "ทองโลก", "world", "world gold", "xauusd"):
+                world_text = _line_get_cached_prices_text("world")
+                _line_reply(
+                    reply_token,
+                    world_text
+                    or "ตอนนี้ยังไม่มีข้อมูลราคาทองโลกในระบบ cache\nลองใหม่อีกครั้งในอีกสักครู่ครับ",
+                )
+                continue
+
             if t in ("status", "สถานะ", "unlink", "ยกเลิก", "เลิก", "disconnect") or re.match(
-                r"^LINK-(\d{6})$", text, flags=re.IGNORECASE
+                r"^(?:LINK-)?(\d{6})$", text, flags=re.IGNORECASE
             ):
                 try:
                     conn = get_db_connection()
@@ -3164,7 +3340,7 @@ def line_webhook():
                         )
                         continue
 
-                    m = re.match(r"^LINK-(\d{6})$", text, flags=re.IGNORECASE)
+                    m = re.match(r"^(?:LINK-)?(\d{6})$", text, flags=re.IGNORECASE)
                     if not m:
                         _line_reply(reply_token, "พิมพ์ \"ช่วยเหลือ\" เพื่อดูเมนูคำสั่ง")
                         continue

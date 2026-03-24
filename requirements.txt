@@ -10,3 +10,4 @@ python-dotenv
 pymysql>=1.1.0
 cryptography>=41.0.0
 bcrypt>=4.1.2
+pywebpush>=2.0.3
