@@ -1806,6 +1806,120 @@ body.modal-open {
     }
 }
 
+@media (max-width: 768px) {
+    html,
+    body {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    .container,
+    #main-content-container,
+    header,
+    .section,
+    .auth-modal {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .section {
+        overflow: hidden;
+    }
+
+    .price-tabs {
+        display: flex !important;
+        flex-wrap: nowrap;
+    }
+
+    .price-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .price-box-wrapper {
+        flex-direction: column !important;
+    }
+
+    .price-box,
+    .price-category,
+    .price-announcement {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .price-announcement {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .refresh-section {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .auth-info-panel {
+        display: none !important;
+    }
+
+    .auth-modal {
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        min-height: calc(100vh - 16px) !important;
+        max-height: calc(100vh - 16px) !important;
+        margin: 8px auto;
+        border-radius: 24px;
+    }
+
+    .auth-body {
+        width: 100% !important;
+    }
+
+    .auth-form-area {
+        padding: 22px 16px 18px !important;
+        overflow-y: auto;
+    }
+
+    .form-container {
+        display: flex !important;
+        position: static !important;
+        height: auto !important;
+        min-height: 100% !important;
+        padding: 0 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+
+    .sign-up-container,
+    .forgot-password-container {
+        display: none !important;
+    }
+
+    .modal-container.right-panel-active .sign-up-container {
+        display: flex !important;
+    }
+
+    .modal-container.forgot-panel-active .forgot-password-container {
+        display: flex !important;
+    }
+
+    .form-container form {
+        max-width: 100% !important;
+        text-align: left;
+    }
+
+    .form-container h1 {
+        font-size: 1.75rem;
+    }
+
+    .auth-switch {
+        justify-content: flex-start;
+    }
+}
+
 
 /* --- Overlay --- */
 .overlay-container {
