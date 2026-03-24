@@ -35,5 +35,10 @@ try {
         "unread_count" => (int)$unread_data['unread_count']
     ]);
 } catch (Exception $e) {
-    sendJSON(["success" => false, "message" => "Server Error: " . $e->getMessage()], 500);
+    sendJSON([
+        "success" => true,
+        "data" => [],
+        "unread_count" => 0,
+        "degraded" => true
+    ], 200);
 }

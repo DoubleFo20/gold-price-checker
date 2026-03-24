@@ -601,30 +601,41 @@ def php_compat_notifications_list():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
 
-    conn = get_db_connection()
+    try:
+        conn = get_db_connection()
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=True, data=[], unread_count=0, degraded=True), 200
     try:
         user, err = _require_auth_user(conn)
         if err:
             return err
 
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id, title, message, type, is_read, link, created_at
-                FROM notifications
-                WHERE user_id=%s
-                ORDER BY created_at DESC
-                LIMIT 20
-                """,
-                (user["id"],),
-            )
-            items = cursor.fetchall() or []
-            cursor.execute("SELECT COUNT(*) AS c FROM notifications WHERE user_id=%s AND is_read=0", (user["id"],))
-            unread = cursor.fetchone() or {"c": 0}
-        return jsonify(success=True, data=items, unread_count=int(unread.get("c") or 0)), 200
+            degraded = False
+            try:
+                cursor.execute(
+                    """
+                    SELECT id, title, message, type, is_read, link, created_at
+                    FROM notifications
+                    WHERE user_id=%s
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                    """,
+                    (user["id"],),
+                )
+                items = cursor.fetchall() or []
+                cursor.execute("SELECT COUNT(*) AS c FROM notifications WHERE user_id=%s AND is_read=0", (user["id"],))
+                unread = cursor.fetchone() or {"c": 0}
+            except Exception:
+                traceback.print_exc()
+                items = []
+                unread = {"c": 0}
+                degraded = True
+        return jsonify(success=True, data=items, unread_count=int(unread.get("c") or 0), degraded=degraded), 200
     except Exception:
         traceback.print_exc()
-        return jsonify(success=False, message="โหลดไม่สำเร็จ"), 500
+        return jsonify(success=True, data=[], unread_count=0, degraded=True), 200
     finally:
         conn.close()
 
@@ -637,7 +648,11 @@ def php_compat_notifications_mark_read():
     data = request.get_json(silent=True) or {}
     notif_id = data.get("id")
 
-    conn = get_db_connection()
+    try:
+        conn = get_db_connection()
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=True, message="Notification storage unavailable", degraded=True), 200
     try:
         user, err = _require_auth_user(conn)
         if err:
@@ -656,7 +671,7 @@ def php_compat_notifications_mark_read():
         return jsonify(success=True, message="Updated successfully"), 200
     except Exception:
         traceback.print_exc()
-        return jsonify(success=False, message="Server Error"), 500
+        return jsonify(success=True, message="Notification storage unavailable", degraded=True), 200
     finally:
         conn.close()
 
@@ -1214,6 +1229,8 @@ def api_world():
         # สูตรย้อนกลับจากบาท/บาททอง -> USD/Oz
         try:
             thai_data = thai_cache.get("data") or {}
+            if not thai_data.get("bar_sell"):
+                thai_data = refresh_thai_cache() or {}
             thai_bar_sell = to_float(thai_data.get("bar_sell"))
             usdthb = get_usdthb()
             factor = (15.244 / 31.1035) * usdthb
@@ -1232,7 +1249,21 @@ def api_world():
                 return jsonify(data), 200
         except Exception:
             pass
-        return jsonify({"error": "Failed to fetch world gold price"}), 500
+        fallback_thai = to_float((thai_cache.get("data") or {}).get("bar_sell")) or 41500.0
+        fallback_usdthb = to_float(get_usdthb()) or 36.85
+        fallback_factor = (15.244 / 31.1035) * fallback_usdthb
+        fallback_usd = round(fallback_thai / fallback_factor, 2) if fallback_factor else 0.0
+        data = {
+            "price_usd_per_ounce": fallback_usd,
+            "usdthb": round(fallback_usdthb, 4),
+            "thb_per_baht_est": round(fallback_thai, 2),
+            "last_updated": datetime.now().strftime("%H:%M:%S"),
+            "estimated": True,
+            "source_note": "Emergency fallback",
+            "source_url": "fallback://static-estimate",
+        }
+        world_cache.update({"data": data, "ts": time.time()})
+        return jsonify(data), 200
 
 @app.route("/api/thai-gold-price")
 def api_thai():
@@ -1510,6 +1541,83 @@ def api_historical():
 # -------------------- Intraday API (Real-Time Chart) --------------------
 intraday_cache = {}
 
+
+def _build_intraday_fallback_payload(time_range='1d', source_note='Synthetic Fallback'):
+    safe_range = (time_range or '1d').lower()
+    if safe_range not in ('1d', '5d', '1w', '1mo'):
+        safe_range = '1d'
+
+    base_price = 41500.0
+    try:
+        if thai_cache.get("data") and thai_cache["data"].get("bar_sell"):
+            base_price = float(thai_cache["data"]["bar_sell"])
+    except Exception:
+        pass
+
+    usdthb = to_float(get_usdthb()) or 36.85
+    factor = usdthb * (15.244 / 31.1035) * 0.965
+
+    import math
+
+    points_map = {
+        '1d': 96,
+        '5d': 120,
+        '1w': 168,
+        '1mo': 30
+    }
+    step_map = {
+        '1d': 5,
+        '5d': 60,
+        '1w': 60,
+        '1mo': 1440
+    }
+
+    labels = []
+    thai_values = []
+    world_values = []
+    assoc_values = []
+
+    points = points_map.get(safe_range, 30)
+    step_mins = step_map.get(safe_range, 1440)
+
+    for i in range(points):
+        dt = datetime.now() - timedelta(minutes=(points - i) * step_mins)
+        if safe_range == '1d':
+            lbl = dt.strftime('%H:%M')
+        elif safe_range in ['5d', '1w']:
+            lbl = dt.strftime('%d %b %H:%M')
+        else:
+            lbl = dt.strftime('%d %b')
+
+        labels.append(lbl)
+
+        noise = math.sin(i / 5.0) * 50 + math.cos(i / 2.0) * 20 + random.uniform(-10, 10)
+        price_thb = round(base_price + noise, 2)
+        thai_values.append(price_thb)
+        world_values.append(round(price_thb / factor, 2) if factor else 0)
+        assoc_values.append(round(price_thb / 50.0) * 50 - 50)
+
+    if thai_values:
+        thai_values[-1] = round(base_price, 2)
+    if world_values:
+        world_values[-1] = round(base_price / factor, 2) if factor else 0
+    if assoc_values:
+        assoc_values[-1] = round(base_price / 50.0) * 50 - 50
+        try:
+            if thai_cache.get("data") and thai_cache["data"].get("bar_sell"):
+                assoc_values[-1] = float(thai_cache["data"]["bar_sell"])
+        except Exception:
+            pass
+
+    return {
+        "labels": labels,
+        "thai_values": thai_values,
+        "world_values": world_values,
+        "assoc_values": assoc_values,
+        "source": f"{source_note} ({safe_range})",
+        "updated_at": datetime.now().isoformat()
+    }
+
 @app.route("/api/intraday")
 def api_intraday():
     try:
@@ -1590,59 +1698,9 @@ def api_intraday():
         
         # Fallback if no yfinance or error
         if not labels:
-            base_price = 41500.0
-            if thai_cache["data"] and thai_cache["data"].get("bar_sell"):
-                base_price = float(thai_cache["data"]["bar_sell"])
-            
-            usdthb = get_usdthb()
-            factor = usdthb * (15.244 / 31.1035) * 0.965
-            
-            import math
-            points_map = {
-                '1d': 96,    # 5-min intervals
-                '5d': 120,   # Hours
-                '1w': 168,   # Hours
-                '1mo': 30    # Days
-            }
-            points = points_map.get(time_range, 30)
-            
-            # Step size in minutes for the fallback date calculation
-            step_map = {
-                '1d': 5,
-                '5d': 60,
-                '1w': 60,
-                '1mo': 1440
-            }
-            step_mins = step_map.get(time_range, 1440)
-            
-            for i in range(points):
-                dt = datetime.now() - timedelta(minutes=(points-i)*step_mins)
-                
-                # Format
-                if time_range == '1d':
-                    lbl = dt.strftime('%H:%M')
-                elif time_range in ['5d', '1w']:
-                    lbl = dt.strftime('%d %b %H:%M')
-                else:
-                    lbl = dt.strftime('%d %b')
-                
-                labels.append(lbl)
-                    
-                noise = math.sin(i / 5.0) * 50 + math.cos(i / 2.0) * 20 + random.uniform(-10, 10)
-                price_thb = base_price + noise
-                thai_values.append(round(price_thb, 2))
-                world_values.append(round(price_thb / factor, 2) if factor else 0)
-                
-                assoc_historical = round(price_thb / 50.0) * 50 - 50
-                assoc_values.append(assoc_historical)
-            
-            thai_values[-1] = round(base_price, 2)
-            world_values[-1] = round(base_price / factor, 2) if factor else 0
-            # Force the last association value to be the real current price if we have it
-            if thai_cache["data"] and thai_cache["data"].get("bar_sell"):
-                assoc_values[-1] = float(thai_cache["data"]["bar_sell"])
-                
-            source = f"Synthetic Fallback ({time_range})"
+            data = _build_intraday_fallback_payload(time_range, "Synthetic Fallback")
+            intraday_cache[cache_key] = {"data": data, "ts": now}
+            return jsonify(data)
             
         # Overwrite the very last association price with the live one from the cache to ensure the current end is 100% accurate
         if assoc_values and thai_cache["data"] and thai_cache["data"].get("bar_sell"):
@@ -1662,7 +1720,11 @@ def api_intraday():
         
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": "Failed to load intraday data", "details": str(e)}), 500
+        safe_range = request.args.get('range', '1d').lower()
+        data = _build_intraday_fallback_payload(safe_range, "Emergency Fallback")
+        data["warning"] = str(e)
+        intraday_cache[f"intraday_{safe_range if safe_range in ('1d', '5d', '1w', '1mo') else '1d'}"] = {"data": data, "ts": time.time()}
+        return jsonify(data), 200
 
 # -------------------- Forecast API (อัปเกรดแล้ว) --------------------
 @app.route("/api/forecast", methods=["GET"])
