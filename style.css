@@ -443,6 +443,7 @@ body.modal-open {
 @media (max-width: 768px) {
     .container {
         padding: 12px;
+        padding-bottom: 96px;
     }
 
     .section {
@@ -474,10 +475,10 @@ body.modal-open {
         right: 12px;
         left: 12px;
         display: none;
-        flex-direction: column;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: stretch;
-        gap: 8px;
-        padding: 14px;
+        gap: 10px;
+        padding: 12px;
         margin-top: 0;
         background: rgba(255, 255, 255, 0.96);
         border: 1px solid rgba(234, 234, 234, 0.9);
@@ -489,7 +490,7 @@ body.modal-open {
     }
 
     .navbar.nav-open .nav-menu {
-        display: flex;
+        display: grid;
     }
 
     .navbar.nav-open .nav-toggle span:nth-child(1) {
@@ -513,15 +514,17 @@ body.modal-open {
     .nav-menu button {
         display: flex;
         align-items: center;
-        min-height: 48px;
-        padding: 12px 14px;
-        font-size: 0.95em;
+        justify-content: center;
+        min-height: 44px;
+        padding: 10px 12px;
+        font-size: 0.92em;
+        font-weight: 500;
         border-radius: 14px;
         background: var(--surface-secondary);
     }
 
     .login-btn {
-        padding: 10px 18px;
+        padding: 10px 14px;
         justify-content: center;
     }
 
@@ -534,10 +537,30 @@ body.modal-open {
         box-shadow: none;
     }
 
+    .nav-menu li#notification-menu-container {
+        order: -2;
+    }
+
+    .nav-menu li#user-menu-container,
+    .nav-menu li#login-menu-container {
+        order: -1;
+    }
+
     .nav-item-dropdown .login-btn,
     .nav-notification-btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .nav-menu li#login-menu-container,
+    .nav-menu li#user-menu-container.show {
+        grid-column: 1 / -1;
+    }
+
+    .nav-notification-btn {
+        min-width: 0;
+        margin-right: 0;
+        border-radius: 14px;
     }
 
     .dropdown-menu,
@@ -571,6 +594,13 @@ body.modal-open {
         box-shadow: 0 18px 40px rgba(17, 24, 39, 0.18);
         z-index: 1200;
         backdrop-filter: blur(12px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    body.nav-open .mobile-quick-nav {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(12px);
     }
 
     .quick-nav-pill {
