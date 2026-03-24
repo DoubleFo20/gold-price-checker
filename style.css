@@ -1920,6 +1920,150 @@ body.modal-open {
     }
 }
 
+@media (max-width: 768px) {
+    .calculator-main-layout {
+        grid-template-columns: 1fr !important;
+        gap: 18px;
+    }
+
+    .calculator-panel,
+    .forecast-controls-panel,
+    .forecast-results-container,
+    .forecast-summary-container,
+    .forecast-chart-container,
+    .forecast-factors-panel,
+    .alert-form-grid,
+    .forecast-controls {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .calc-form {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+    }
+
+    .calc-form label {
+        margin-bottom: -2px;
+    }
+
+    .calc-form input,
+    .calc-form select,
+    .custom-select,
+    .alert-form-grid input,
+    .alert-form-grid select {
+        min-height: 48px;
+        font-size: 16px;
+    }
+
+    .result-display .result-item {
+        gap: 12px;
+        align-items: center;
+    }
+
+    .result-display .result-item span:first-child {
+        flex: 1;
+        min-width: 0;
+        padding-right: 12px;
+    }
+
+    .result-display .result-item span:last-child {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .weight-tables-wrapper,
+    .weight-tables-container {
+        flex-direction: column !important;
+        gap: 12px;
+    }
+
+    .weight-table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .forecast-controls-panel {
+        grid-template-columns: 1fr !important;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .forecast-results-container,
+    .forecast-results-grid {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto;
+        gap: 16px;
+    }
+
+    .forecast-summary-container {
+        order: 2;
+    }
+
+    .forecast-chart-container,
+    .forecast-chart-wrapper {
+        order: 1;
+        min-height: 260px;
+    }
+
+    .forecast-factors-panel {
+        order: 3;
+        margin-top: 0;
+        padding: 16px;
+    }
+
+    .forecast-factors-panel ul {
+        grid-template-columns: 1fr;
+    }
+
+    .forecast-summary-container .summary-item,
+    .forecast-summary-card .summary-item {
+        gap: 12px;
+    }
+
+    .forecast-summary-container .summary-item span:first-child,
+    .forecast-summary-card .summary-item span:first-child {
+        min-width: 0;
+        padding-right: 12px;
+    }
+
+    .forecast-summary-container .summary-item span:last-child,
+    .forecast-summary-card .summary-item span:last-child {
+        white-space: nowrap;
+    }
+
+    .alert-form-grid {
+        grid-template-columns: 1fr !important;
+        padding: 16px;
+    }
+
+    .alert-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .price-box-wrapper {
+        gap: 10px;
+    }
+
+    .price-box {
+        padding: 14px 12px;
+    }
+
+    .price-box span {
+        font-size: 0.85rem;
+    }
+
+    .price-box strong,
+    .large-price {
+        font-size: 1.7rem !important;
+        line-height: 1.1;
+    }
+}
+
 
 /* --- Overlay --- */
 .overlay-container {

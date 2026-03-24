@@ -1372,6 +1372,7 @@ async function fetchGoldNews() {
 function renderForecastChart(payload) {
     const el = document.getElementById('forecast-chart');
     if (!el || typeof Chart === 'undefined') return;
+    const isMobile = window.innerWidth < 768;
 
     const labels = payload.labels.map(d => new Date(d));
     const histLen = payload.history.length;
@@ -1454,12 +1455,36 @@ function renderForecastChart(payload) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             scales: {
-                x: { type: 'time', time: { unit: 'day' } },
-                y: { beginAtZero: false }
+                x: {
+                    type: 'time',
+                    time: { unit: isMobile ? 'day' : 'day' },
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: isMobile ? 6 : 10,
+                        maxRotation: 0,
+                        font: { size: isMobile ? 10 : 12 }
+                    }
+                },
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        font: { size: isMobile ? 10 : 12 }
+                    }
+                }
             },
             plugins: {
-                legend: { position: 'top' },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: isMobile ? 12 : 18,
+                        boxHeight: isMobile ? 8 : 10,
+                        usePointStyle: false,
+                        font: { size: isMobile ? 10 : 12 }
+                    }
+                },
                 tooltip: {
+                    bodyFont: { size: isMobile ? 11 : 12 },
+                    titleFont: { size: isMobile ? 11 : 12 },
                     callbacks: {
                         label: function(ctx) {
                             const v = ctx.parsed.y;
