@@ -40,11 +40,13 @@ let latestThaiPrices = {};
 function showLoginModal() {
     const modal = document.getElementById('loginModal');
     if (modal) modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
     setAuthMode('login');
 }
 function hideLoginModal() {
     const modal = document.getElementById('loginModal');
     if (modal) modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
 }
 function setAuthMode(mode) {
     const modalContainer = document.querySelector('#loginModal .modal-container');
@@ -2010,6 +2012,37 @@ async function initializeApp() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    const navbar = document.querySelector('.navbar');
+    const navToggle = document.getElementById('navToggle');
+    const navMenu = document.getElementById('primaryNav');
+
+    function closeMobileNav() {
+        navbar?.classList.remove('nav-open');
+        document.body.classList.remove('nav-open');
+        navToggle?.setAttribute('aria-expanded', 'false');
+    }
+
+    navToggle?.addEventListener('click', () => {
+        const isOpen = navbar?.classList.toggle('nav-open');
+        document.body.classList.toggle('nav-open', Boolean(isOpen));
+        navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    navMenu?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', closeMobileNav);
+    });
+
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) closeMobileNav();
+    });
+
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeMobileNav();
+            hideLoginModal();
+        }
+    });
+
     await loadAllComponents();
     await initializeApp();
 });
