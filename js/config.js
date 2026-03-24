@@ -1,6 +1,19 @@
 // js/config.js  (Frontend)
 const _isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const _pythonApiUrl = _isLocalhost ? 'http://127.0.0.1:5000' : window.location.origin;
+const PROD_PYTHON_API_URL = 'https://your-render-api.onrender.com';
+
+function normalizeBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '');
+}
+
+const _explicitApiUrl =
+  window.__APP_API_URL__ ||
+  document.documentElement?.dataset?.apiBase ||
+  PROD_PYTHON_API_URL;
+
+const _pythonApiUrl = _isLocalhost
+  ? 'http://127.0.0.1:5000'
+  : normalizeBaseUrl(_explicitApiUrl || window.location.origin);
 
 window.APP_CONFIG = {
   // Flask (ราคาทองคำ/ข่าวสาร/ข้อมูลย้อนหลัง)

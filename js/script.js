@@ -36,6 +36,12 @@ let currentUser = null;
 let chartThai, chartWorld, forecastChart;
 let latestThaiPrices = {};
 
+function buildPythonApiUrl(path) {
+    const base = String(window.APP_CONFIG?.PYTHON_API_URL || '').replace(/\/+$/, '');
+    const suffix = String(path || '').startsWith('/') ? path : `/${path}`;
+    return `${base}${suffix}`;
+}
+
 
 function showLoginModal() {
     const modal = document.getElementById('loginModal');
@@ -867,7 +873,7 @@ async function fetchAndUpdatePriceBoard() {
 
     // --- ส่วนทองไทย (Real-time from Server) ---
     try {
-        const resp = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/thai-gold-price`);
+        const resp = await fetch(buildPythonApiUrl(window.APP_CONFIG.API.THAI_PRICE));
         if (!resp.ok) throw new Error(`Server error: ${resp.status} `);
         const data = await resp.json();
 
@@ -927,7 +933,7 @@ async function fetchAndUpdatePriceBoard() {
 
     // --- ส่วนทองโลก ---
     try {
-        const wresp = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/world-gold-price`);
+        const wresp = await fetch(buildPythonApiUrl(window.APP_CONFIG.API.WORLD_PRICE));
         if (!wresp.ok) throw new Error(`Server error: ${wresp.status} `);
         const wdata = await wresp.json();
 
@@ -1906,20 +1912,43 @@ async function initializeApp() {
     // [เพิ่ม] ปุ่มแจ้งเตือน (Bell Icon)
     const notifBtn = document.getElementById('notifBtn');
     const notifDropdown = document.getElementById('notifDropdown');
-    if (notifBtn && notifDropdown) {
+    const notifMenuContainer = document.getElementById('notification-menu-container');
+    const userBtn = document.getElementById('userBtn');
+    const userMenuContainer = document.getElementById('user-menu-container');
+    const closeUserDropdown = () => {
+        userMenuContainer?.classList.remove('show');
+        userBtn?.setAttribute('aria-expanded', 'false');
+    };
+    const closeNotifDropdown = () => {
+        notifMenuContainer?.classList.remove('show');
+        notifDropdown?.classList.remove('show');
+        notifBtn?.setAttribute('aria-expanded', 'false');
+    };
+    if (notifBtn && notifDropdown && notifMenuContainer) {
         notifBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            notifDropdown.classList.toggle('show');
-            if (notifDropdown.classList.contains('show')) {
+            if (window.innerWidth <= 768) {
+                closeNotifDropdown();
+                const alertsSection = document.getElementById('alerts-container');
+                if (alertsSection) {
+                    alertsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    window.location.hash = '#alerts-container';
+                }
+                return;
+            }
+            const willShow = !notifDropdown.classList.contains('show');
+            closeUserDropdown();
+            notifMenuContainer.classList.toggle('show', willShow);
+            notifDropdown.classList.toggle('show', willShow);
+            notifBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+            if (willShow) {
                 fetchNotifications();
             }
         });
 
         // ปิด dropdown เมื่อคลิกที่อื่น
-        document.addEventListener('click', () => {
-            notifDropdown.classList.remove('show');
-        });
         notifDropdown.addEventListener('click', (e) => {
             e.stopPropagation();
         });
@@ -2019,20 +2048,23 @@ async function initializeApp() {
     console.log('✅ App initialized');
 
     // จัดการ User Dropdown Menu
-    const userBtn = document.getElementById('userBtn');
     if (userBtn) {
         userBtn.addEventListener('click', function (event) {
             event.preventDefault();
             event.stopPropagation();
-            const parent = userBtn.closest('.nav-item-dropdown');
-            parent?.classList.toggle('show');
+            const willShow = !userMenuContainer?.classList.contains('show');
+            closeNotifDropdown();
+            userMenuContainer?.classList.toggle('show', willShow);
+            userBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
         });
     }
 
     window.addEventListener('click', function (event) {
-        const userMenuContainer = document.getElementById('user-menu-container');
         if (userMenuContainer && !userMenuContainer.contains(event.target)) {
-            userMenuContainer.classList.remove('show');
+            closeUserDropdown();
+        }
+        if (notifMenuContainer && !notifMenuContainer.contains(event.target)) {
+            closeNotifDropdown();
         }
     });
 }

@@ -1,5 +1,6 @@
 # ===================== server.py =====================
 from flask import Flask, jsonify, request, send_from_directory
+from urllib.parse import urlparse
 import time, random, traceback, threading, os, smtplib, hmac, hashlib, base64, re, json
 import requests
 from bs4 import BeautifulSoup
@@ -43,13 +44,41 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 app = Flask(__name__)
 
-ALLOWED_ORIGINS = ['http://localhost', 'http://127.0.0.1']
+def _load_allowed_origins():
+    defaults = {
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    }
+    raw = os.getenv("FRONTEND_ORIGINS", "")
+    configured = {origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()}
+    return defaults | configured
+
+
+ALLOWED_ORIGINS = _load_allowed_origins()
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    normalized = origin.rstrip("/")
+    if normalized in ALLOWED_ORIGINS:
+        return True
+    try:
+        parsed = urlparse(normalized)
+    except Exception:
+        return False
+    return parsed.hostname in {"localhost", "127.0.0.1"}
 
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin', '')
-    if any(origin.startswith(o) for o in ALLOWED_ORIGINS):
-        response.headers['Access-Control-Allow-Origin'] = origin
+    if _origin_allowed(origin):
+        response.headers['Access-Control-Allow-Origin'] = origin.rstrip("/")
+        response.headers['Vary'] = 'Origin'
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
     response.headers.add('Access-Control-Allow-Credentials', 'true')

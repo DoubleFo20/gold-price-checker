@@ -31,11 +31,11 @@
                 <!-- <li><a href="#po-container">ปฏิทินเศรษฐกิจ</a></li> -->
                 
                 <!-- Notification Bell -->
-                <li id="notification-menu-container" style="display: none;">
-                    <a href="#" class="nav-notification-btn" id="notifBtn">
+                <li class="nav-item-dropdown" id="notification-menu-container" style="display: none;">
+                    <button type="button" class="nav-notification-btn" id="notifBtn" aria-expanded="false" aria-controls="notifDropdown">
                         <i class="fas fa-bell"></i>
                         <span class="notif-badge" id="notif-count">0</span>
-                    </a>
+                    </button>
                     <div class="notif-dropdown" id="notifDropdown">
                         <div class="notif-header">
                             <h3>การแจ้งเตือน</h3>
@@ -51,9 +51,9 @@
                 </li>
 
                 <li class="nav-item-dropdown" id="user-menu-container" style="display: none;">
-                    <a href="#" class="login-btn" id="userBtn">
+                    <button type="button" class="login-btn" id="userBtn" aria-expanded="false" aria-controls="userDropdown">
                         <span id="username-display"></span> ▼
-                    </a>
+                    </button>
                     <div class="dropdown-menu" id="userDropdown">
                         <a href="#" id="profileLink">ข้อมูลส่วนตัว</a>
                         <a href="#" id="logoutBtn">ออกจากระบบ</a>

@@ -283,7 +283,8 @@ body {
     margin-left: 25px;
 }
 
-.nav-menu a {
+.nav-menu a,
+.nav-menu button {
     color: var(--text-secondary);
     text-decoration: none;
     padding: 8px 15px;
@@ -292,7 +293,14 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-.nav-menu a:hover {
+.nav-menu button {
+    border: none;
+    font: inherit;
+    cursor: pointer;
+}
+
+.nav-menu a:hover,
+.nav-menu button:hover {
     color: #e2c207;
     /* เปลี่ยนสีตัวอักษรเป็นสีดำเมื่อ hover */
     background: none;
@@ -300,7 +308,8 @@ body {
 
 }
 
-.nav-menu a:hover::after {
+.nav-menu a:hover::after,
+.nav-menu button:hover::after {
     width: 100%;
     /* ทำให้เส้นขีดเต็มความกว้างของลิงก์ */
 }
@@ -500,7 +509,8 @@ body.modal-open {
         width: 100%;
     }
 
-    .nav-menu a {
+    .nav-menu a,
+    .nav-menu button {
         display: flex;
         align-items: center;
         min-height: 48px;
@@ -3431,6 +3441,8 @@ button#toggleDevMode,
     transition: all 0.3s ease;
     margin-right: 15px;
     text-decoration: none;
+    border: none;
+    cursor: pointer;
 }
 
 .nav-notification-btn:hover {
