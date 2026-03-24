@@ -1,6 +1,5 @@
 // js/config.js  (Frontend)
 const _isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const PROD_PYTHON_API_URL = 'https://your-render-api.onrender.com';
 
 function normalizeBaseUrl(url) {
   return String(url || '').trim().replace(/\/+$/, '');
@@ -8,8 +7,7 @@ function normalizeBaseUrl(url) {
 
 const _explicitApiUrl =
   window.__APP_API_URL__ ||
-  document.documentElement?.dataset?.apiBase ||
-  PROD_PYTHON_API_URL;
+  document.documentElement?.dataset?.apiBase;
 
 const _pythonApiUrl = _isLocalhost
   ? 'http://127.0.0.1:5000'

@@ -1130,7 +1130,7 @@ window.fetchAndRenderThaiLiveChart = async function (range = '1d') {
     if (!canvas || typeof Chart === 'undefined') return;
 
     try {
-        const res = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/intraday?range=${range}`);
+        const res = await fetch(buildPythonApiUrl(`/api/intraday?range=${range}`));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -1242,7 +1242,7 @@ async function loadHistoricalCharts() {
     };
 
     try {
-        const resp = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/historical?days=${days}`);
+        const resp = await fetch(buildPythonApiUrl(`/api/historical?days=${days}`));
         if (!resp.ok) throw new Error(`Server error: ${resp.status} `);
         const data = await resp.json();
         const labels = (data.labels || []).map(d => new Date(d));
@@ -1355,7 +1355,7 @@ async function fetchGoldNews() {
     box.textContent = 'กำลังโหลดข่าวสารล่าสุด...';
 
     // Point to the Python backend which handles Thai news and fallbacks
-    const url = `${window.APP_CONFIG.PYTHON_API_URL}/api/news`;
+    const url = buildPythonApiUrl('/api/news');
 
     try {
         const r = await fetch(url);
@@ -1537,7 +1537,7 @@ async function generateForecast() {
     if (trendEl) trendEl.textContent = 'กำลังคำนวณ...';
 
     try {
-        const url = `${window.APP_CONFIG.PYTHON_API_URL}/api/forecast?period=${period}&model=${model}&hist_days=${histDays}`;
+        const url = buildPythonApiUrl(`/api/forecast?period=${period}&model=${model}&hist_days=${histDays}`);
 
         const r = await fetch(url);
         const j = await r.json();
@@ -1801,7 +1801,7 @@ function urlBase64ToUint8Array(base64String) {
 
 async function getVapidPublicKey() {
     try {
-        const res = await fetch(`${window.APP_CONFIG.PYTHON_API_URL}/api/web-push/public-key`);
+        const res = await fetch(buildPythonApiUrl('/api/web-push/public-key'));
         const data = await res.json().catch(() => ({}));
         if (res.ok && data && data.public_key) return data.public_key;
     } catch (e) { }
