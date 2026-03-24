@@ -578,10 +578,18 @@ body.modal-open {
         background: var(--surface-secondary);
         border: 1px solid var(--border-color);
         white-space: nowrap;
+        appearance: none;
+        -webkit-appearance: none;
     }
 
     .quick-nav-pill:active {
         transform: translateY(1px);
+    }
+
+    .quick-nav-pill--accent {
+        background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+        color: #fff;
+        border-color: transparent;
     }
 
     .container {

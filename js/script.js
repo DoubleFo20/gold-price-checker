@@ -2064,6 +2064,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         link.addEventListener('click', closeMobileNav);
     });
 
+    document.getElementById('quickAccountBtn')?.addEventListener('click', () => {
+        closeMobileNav();
+        if (window.isLoggedIn) {
+            showProfileModal();
+        } else {
+            showLoginModal();
+        }
+    });
+
     window.addEventListener('resize', () => {
         if (window.innerWidth > 768) closeMobileNav();
     });
