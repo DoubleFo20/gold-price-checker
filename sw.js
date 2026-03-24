@@ -2,14 +2,16 @@
 self.addEventListener('push', function(event) {
     if (event.data) {
         const data = event.data.json();
+        const defaultUrl = new URL(self.registration.scope).pathname || '/';
         const options = {
             body: data.body,
-            icon: '/gold-price-checker/assets/img/icon.png', // ปรับ path ตามจริง
-            badge: '/gold-price-checker/assets/img/badge.png',
             data: {
-                url: data.url || '/gold-price-checker/'
+                url: data.url || defaultUrl
             }
         };
+
+        if (data.icon) options.icon = data.icon;
+        if (data.badge) options.badge = data.badge;
 
         event.waitUntil(
             self.registration.showNotification(data.title, options)

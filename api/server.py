@@ -279,6 +279,72 @@ def php_compat_check_session():
         conn.close()
 
 
+@app.route("/api/api/auth/update_profile.php", methods=["POST", "OPTIONS"])
+def php_compat_update_profile():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if len(name) < 2:
+        return jsonify(success=False, message="ชื่อไม่ถูกต้อง"), 400
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        def _save_name():
+            with conn.cursor() as cursor:
+                cursor.execute("UPDATE users SET name=%s WHERE id=%s", (name, user["id"]))
+            conn.commit()
+
+        _retry_after_users_column_fix(conn, ("name",), _save_name)
+        return jsonify(success=True, message="อัปเดตโปรไฟล์สำเร็จ", user={"id": user["id"], "name": name, "email": user.get("email")}), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="ไม่สามารถบันทึกชื่อได้"), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/api/auth/change_password.php", methods=["POST", "OPTIONS"])
+def php_compat_change_password():
+    if request.method == "OPTIONS":
+        return jsonify(success=True), 200
+
+    data = request.get_json(silent=True) or {}
+    old_password = data.get("old_password") or ""
+    new_password = data.get("new_password") or ""
+    if (not old_password) or len(new_password) < 6:
+        return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
+
+    conn = get_db_connection()
+    try:
+        user, err = _require_auth_user(conn)
+        if err:
+            return err
+
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT password_hash FROM users WHERE id=%s LIMIT 1", (user["id"],))
+            row = cursor.fetchone() or {}
+
+        if not _bcrypt_verify(old_password, row.get("password_hash") or ""):
+            return jsonify(success=False, message="รหัสผ่านเดิมไม่ถูกต้อง"), 400
+
+        new_hash = _bcrypt_hash(new_password)
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE users SET password_hash=%s WHERE id=%s", (new_hash, user["id"]))
+        conn.commit()
+        return jsonify(success=True, message="เปลี่ยนรหัสผ่านสำเร็จ"), 200
+    except Exception:
+        traceback.print_exc()
+        return jsonify(success=False, message="ไม่สามารถเปลี่ยนรหัสผ่านได้"), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/api/auth/logout.php", methods=["POST", "OPTIONS"])
 def php_compat_logout():
     if request.method == "OPTIONS":
@@ -309,6 +375,18 @@ def web_push_public_key():
     return jsonify(success=True, public_key=key), 200
 
 
+def _line_connect_meta():
+    bot_id = (os.getenv("LINE_BOT_ID") or "").strip()
+    add_friend_url = (os.getenv("LINE_ADD_FRIEND_URL") or "").strip()
+    if (not add_friend_url) and bot_id:
+        normalized = bot_id if bot_id.startswith("@") else f"@{bot_id}"
+        add_friend_url = f"https://line.me/R/ti/p/{normalized}"
+    return {
+        "line_bot_id": bot_id,
+        "add_friend_url": add_friend_url,
+    }
+
+
 @app.route("/api/api/profile/update_push.php", methods=["POST", "OPTIONS"])
 def php_compat_update_push():
     if request.method == "OPTIONS":
@@ -324,10 +402,13 @@ def php_compat_update_push():
         sub = request.get_json(silent=True)
         sub_str = None if sub is None else json.dumps(sub, ensure_ascii=False)
 
-        try:
+        def _save_push():
             with conn.cursor() as cursor:
                 cursor.execute("UPDATE users SET push_subscription=%s WHERE id=%s", (sub_str, user["id"]))
             conn.commit()
+
+        try:
+            _retry_after_users_column_fix(conn, ("push_subscription",), _save_push)
         except Exception as e:
             conn.rollback()
             return jsonify(success=False, message=str(e)), 500
@@ -357,10 +438,14 @@ def php_compat_generate_line_code():
             return err
 
         code = str(random.randint(0, 999999)).zfill(6)
-        with conn.cursor() as cursor:
-            cursor.execute("UPDATE users SET verification_token=%s WHERE id=%s", (code, user["id"]))
-        conn.commit()
-        return jsonify(success=True, code=code, message="Code generated successfully"), 200
+
+        def _save_line_code():
+            with conn.cursor() as cursor:
+                cursor.execute("UPDATE users SET verification_token=%s WHERE id=%s", (code, user["id"]))
+            conn.commit()
+
+        _retry_after_users_column_fix(conn, ("verification_token",), _save_line_code)
+        return jsonify(success=True, code=code, message="Code generated successfully", **_line_connect_meta()), 200
     except Exception:
         traceback.print_exc()
         return jsonify(success=False, message="Server Error"), 500
@@ -383,12 +468,15 @@ def php_compat_update_line():
         if err:
             return err
 
-        with conn.cursor() as cursor:
-            cursor.execute(
-                "UPDATE users SET line_user_id=%s, line_display_name=%s WHERE id=%s",
-                (line_id, display_name, user["id"]),
-            )
-        conn.commit()
+        def _save_line():
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET line_user_id=%s, line_display_name=%s WHERE id=%s",
+                    (line_id, display_name, user["id"]),
+                )
+            conn.commit()
+
+        _retry_after_users_column_fix(conn, ("line_user_id", "line_display_name"), _save_line)
         return jsonify(success=True, message="เชื่อมต่อ LINE สำเร็จ"), 200
     except Exception:
         traceback.print_exc()
@@ -708,6 +796,49 @@ def get_db_connection():
         port=port,
         cursorclass=pymysql.cursors.DictCursor
     )
+
+
+USER_TABLE_ALTERS = {
+    "name": "ALTER TABLE users ADD COLUMN name VARCHAR(100) NULL",
+    "verification_token": "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100) NULL",
+    "line_user_id": "ALTER TABLE users ADD COLUMN line_user_id VARCHAR(100) NULL",
+    "line_display_name": "ALTER TABLE users ADD COLUMN line_display_name VARCHAR(100) NULL",
+    # Use LONGTEXT for compatibility with older MySQL variants on Render.
+    "push_subscription": "ALTER TABLE users ADD COLUMN push_subscription LONGTEXT NULL",
+}
+
+
+def _looks_like_missing_column(exc: Exception) -> bool:
+    msg = str(exc or "").lower()
+    return ("unknown column" in msg) or ("1054" in msg)
+
+
+def _ensure_users_columns(conn, columns):
+    required = [col for col in columns if col in USER_TABLE_ALTERS]
+    if not required:
+        return
+
+    with conn.cursor() as cursor:
+        for column in required:
+            try:
+                cursor.execute(USER_TABLE_ALTERS[column])
+            except Exception as exc:
+                msg = str(exc or "").lower()
+                if "duplicate column" in msg or "1060" in msg:
+                    continue
+                raise
+    conn.commit()
+
+
+def _retry_after_users_column_fix(conn, columns, operation):
+    try:
+        return operation()
+    except Exception as exc:
+        if not _looks_like_missing_column(exc):
+            raise
+        conn.rollback()
+        _ensure_users_columns(conn, columns)
+        return operation()
 
 # -------------------- ยูทิลิตี้และตัวดึงข้อมูล --------------------
 def to_float(x):
@@ -2938,6 +3069,7 @@ def _line_get_cached_prices_text():
 def _line_unlink(conn, line_user_id: str) -> bool:
     if not line_user_id:
         return False
+    _ensure_users_columns(conn, ("line_user_id", "line_display_name"))
     with conn.cursor() as cursor:
         cursor.execute(
             "UPDATE users SET line_user_id=NULL, line_display_name=NULL WHERE line_user_id=%s",
@@ -2949,6 +3081,7 @@ def _line_unlink(conn, line_user_id: str) -> bool:
 def _line_status_text(conn, line_user_id: str) -> str:
     if not line_user_id:
         return "ไม่พบ LINE userId"
+    _ensure_users_columns(conn, ("line_user_id",))
     with conn.cursor() as cursor:
         cursor.execute(
             "SELECT id, name FROM users WHERE line_user_id=%s AND is_active=1 LIMIT 1",
@@ -3017,6 +3150,7 @@ def line_webhook():
                     continue
 
                 try:
+                    _ensure_users_columns(conn, ("verification_token", "line_user_id", "line_display_name"))
                     if t in ("status", "สถานะ"):
                         _line_reply(reply_token, _line_status_text(conn, line_user_id))
                         continue

@@ -42,6 +42,21 @@ function buildPythonApiUrl(path) {
     return `${base}${suffix}`;
 }
 
+function buildPhpApiUrl(path) {
+    const base = String(window.APP_CONFIG?.PHP_API_BASE || '').replace(/\/+$/, '');
+    const suffix = String(path || '').replace(/^\/+/, '');
+    return `${base}/${suffix}`;
+}
+
+function saveUserToStorage(user) {
+    if (!user) return;
+    localStorage.setItem('currentUser', JSON.stringify(user));
+    if (user.email) {
+        window.userEmail = user.email;
+        localStorage.setItem('user_email', user.email);
+    }
+}
+
 if (window.APP_CONFIG?.LEGACY_LOCAL_MODE) {
     document.documentElement.classList.add('legacy-local-mode');
     document.body?.classList.add('legacy-local-mode');
@@ -604,7 +619,7 @@ async function saveProfileName() {
         statusEl.style.color = '#666';
     }
     try {
-        const res = await fetch(`${window.APP_CONFIG.PHP_API_BASE}/auth/update_profile.php`, {
+        const res = await fetch(buildPhpApiUrl('auth/update_profile.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -614,9 +629,9 @@ async function saveProfileName() {
         if (!res.ok || !data.success) {
             throw new Error(data.message || 'ไม่สามารถบันทึกได้');
         }
-        window.currentUser = { ...window.currentUser, name };
+        window.currentUser = { ...window.currentUser, ...(data.user || {}), name };
         currentUser = window.currentUser;
-        localStorage.setItem('currentUser', JSON.stringify(window.currentUser));
+        saveUserToStorage(window.currentUser);
         updateUIAfterLogin();
         if (statusEl) {
             statusEl.textContent = 'บันทึกชื่อสำเร็จ';
@@ -657,7 +672,7 @@ async function changeProfilePassword() {
         statusEl.style.color = '#666';
     }
     try {
-        const res = await fetch(`${window.APP_CONFIG.PHP_API_BASE}/auth/change_password.php`, {
+        const res = await fetch(buildPhpApiUrl('auth/change_password.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -1605,7 +1620,9 @@ async function generateForecast() {
 async function fetchNotifications() {
     if (!window.isLoggedIn) return;
     try {
-        const r = await fetch('api/api/notifications/list.php');
+        const r = await fetch(buildPhpApiUrl('notifications/list.php'), {
+            credentials: 'include'
+        });
         const j = await r.json();
         if (j.success) {
             updateNotifBadge(j.unread_count);
@@ -1683,8 +1700,10 @@ function formatTimeAgo(dateStr) {
 
 async function markNotifRead(id) {
     try {
-        await fetch('api/api/notifications/mark_read.php', {
+        await fetch(buildPhpApiUrl('notifications/mark_read.php'), {
             method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
         });
         fetchNotifications();
@@ -1717,16 +1736,32 @@ async function loadLineStatus() {
 // ผูก Event ปุ่มเชื่อมต่อ LINE
 document.getElementById('line-connect-btn')?.addEventListener('click', async () => {
     try {
-        const r = await fetch('api/api/profile/generate_line_code.php', { method: 'POST' });
+        const r = await fetch(buildPhpApiUrl('profile/generate_line_code.php'), {
+            method: 'POST',
+            credentials: 'include'
+        });
         const j = await r.json();
         if (j.success) {
             const code = j.code;
-            const botId = '@your_bot_id'; // ต้องเปลี่ยนเป็น LINE Bot ID ของคุณจริง
-            const qrUrl = `https://line.me/R/ti/p/${botId}`;
-            
-            alert(`วิธีเชื่อมต่อ LINE:\n1. เพิ่มเพื่อนกับบอททองของเรา\n2. ส่งข้อความคำว่า: LINK-${code}\n\nระบบจะทำการเชื่อมต่อบัญชีให้ทันทีครับ!`);
-            
-            // เปลี่ยนข้อความปุ่มเพื่อแสดงรหัส
+            const addFriendUrl = j.add_friend_url || '';
+            const botId = j.line_bot_id || '';
+            const instructions = [
+                'วิธีเชื่อมต่อ LINE:',
+                addFriendUrl
+                    ? '1. ระบบจะเปิดหน้าเพิ่มเพื่อน LINE ให้'
+                    : botId
+                        ? `1. เพิ่มเพื่อน LINE Bot: ${botId}`
+                        : '1. เพิ่มเพื่อน LINE Bot ของระบบก่อน',
+                `2. ส่งข้อความคำว่า: LINK-${code}`,
+                '',
+                'ระบบจะเชื่อมต่อบัญชีให้โดยอัตโนมัติ'
+            ];
+
+            alert(instructions.join('\n'));
+            if (addFriendUrl) {
+                window.open(addFriendUrl, '_blank', 'noopener');
+            }
+
             const btn = document.getElementById('line-connect-btn');
             if (btn) {
                 btn.innerHTML = `<i class="fab fa-line"></i> ส่งรหัส LINK-${code} ไปที่ LINE`;
@@ -1739,8 +1774,10 @@ document.getElementById('line-connect-btn')?.addEventListener('click', async () 
 
 async function saveLineId(lineId, displayName) {
     try {
-        const r = await fetch('api/api/profile/update_line.php', {
+        const r = await fetch(buildPhpApiUrl('profile/update_line.php'), {
             method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ line_user_id: lineId, display_name: displayName })
         });
         const j = await r.json();
@@ -1868,7 +1905,7 @@ document.getElementById('push-unsubscribe-btn')?.addEventListener('click', async
     if (subscription) {
         await subscription.unsubscribe();
         // แจ้ง Server ให้ลบ Subscription
-        await fetch('api/api/profile/update_push.php', {
+        await fetch(buildPhpApiUrl('profile/update_push.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -1881,7 +1918,7 @@ document.getElementById('push-unsubscribe-btn')?.addEventListener('click', async
 
 async function savePushSubscription(subscription) {
     try {
-        await fetch('api/api/profile/update_push.php', {
+        await fetch(buildPhpApiUrl('profile/update_push.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
