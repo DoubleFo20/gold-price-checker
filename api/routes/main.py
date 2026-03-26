@@ -1,7 +1,9 @@
 """routes/main.py — Core endpoints + static file serving for the frontend."""
 import os
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, request, send_from_directory, redirect
 from datetime import datetime
+from database.connection import get_db_connection
+from services.auth import _auth_get_user_by_session
 
 main_bp = Blueprint("main", __name__)
 
@@ -71,6 +73,28 @@ def health():
 def redirect_api_admin(path=""):
     from flask import redirect
     return redirect("/admin/" + path)
+
+@main_bp.route("/admin/", methods=["GET"])
+@main_bp.route("/admin/index.html", methods=["GET"])
+def protected_admin_route():
+    """Strict server-side check before serving the Admin Dashboard HTML."""
+    token = request.cookies.get("session_token")
+    if not token:
+        return redirect("/")
+    
+    conn = get_db_connection()
+    try:
+        user = _auth_get_user_by_session(conn, token)
+        if not user or user.get("role") != "admin":
+            return redirect("/")
+        
+        # User is valid admin, serve the HTML
+        admin_index = os.path.join(PROJECT_ROOT, "admin", "index.html")
+        if os.path.exists(admin_index):
+            return send_from_directory(os.path.join(PROJECT_ROOT, "admin"), "index.html")
+        return jsonify(ok=False, message="Admin template not found"), 404
+    finally:
+        conn.close()
 
 @main_bp.route("/<path:path>", methods=["GET"])
 def static_files(path):
