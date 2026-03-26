@@ -42,8 +42,8 @@
                         <td>
                             <!-- ลิงก์ Edit ชี้ไปที่ index.php ตามปกติ -->
                             <a href="index.php?page=edit_user&id=<?php echo $row['id']; ?>" class="btn btn-warning btn-sm"><i class="fas fa-edit"></i> Edit</a>
-                            <!-- ลิงก์ Delete ชี้ไปที่ไฟล์ delete_user.php โดยตรง -->
-                            <a href="pages/delete_user.php?id=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('คุณแน่ใจหรือไม่ที่จะระงับผู้ใช้นี้?');"><i class="fas fa-trash"></i> Delete</a>
+                            <!-- ลิงก์ Delete ชี้ไปที่ไฟล์ delete_user.php โดยตรง พร้อม CSRF Token -->
+                            <a href="pages/delete_user.php?id=<?php echo $row['id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('คุณแน่ใจหรือไม่ที่จะระงับผู้ใช้นี้?');"><i class="fas fa-trash"></i> Delete</a>
                         </td>
                     </tr>
                     <?php endwhile; } catch (PDOException $e) { 

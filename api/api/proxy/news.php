@@ -7,7 +7,8 @@ ini_set('display_errors', 0);
 header('Content-Type: application/json; charset=utf-8');
 
 // --- START: CONFIG SECTION ---
-$api_key = '21bb5396e40244e0aa244041165363f8';
+$config = require_once __DIR__ . '/../../config/config.php';
+$api_key = $config['api_keys']['newsapi'] ?? '';
 // --- END: CONFIG SECTION ---
 
 

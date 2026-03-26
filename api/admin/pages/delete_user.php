@@ -4,11 +4,18 @@
 // ส่วนหัวสำหรับทำงานด้วยตัวเอง (เชื่อมต่อ DB และตรวจสอบสิทธิ์)
 require_once __DIR__ . '/../../config/database.php';
 session_start();
-$database = new Database($config['db']);
+$database = new Database();
 $conn = $database->getConnection();
 $user = verifySession($conn); 
 if (!$user || $user['role'] !== 'admin') {
     header('Location: ../index.php?page=users&message=' . urlencode('Permission denied.'));
+    exit;
+}
+
+// ตรวจสอบ CSRF Token
+$csrf_token = $_GET['csrf_token'] ?? '';
+if (empty($csrf_token) || $csrf_token !== ($_SESSION['csrf_token'] ?? '')) {
+    header('Location: ../index.php?page=users&message=' . urlencode('CSRF token validation failed.'));
     exit;
 }
 

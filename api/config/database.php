@@ -3,11 +3,30 @@
 
 // ===== CORS Headers (ทำงานก่อนเสมอ) =====
 if (php_sapi_name() !== 'cli') {
-    if (isset($_SERVER['HTTP_ORIGIN']) && (strpos($_SERVER['HTTP_ORIGIN'], 'http://localhost') === 0)) {
-        header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
-    } else {
-        header("Access-Control-Allow-Origin: *");
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowed_origins = [
+        'http://localhost',
+        'http://127.0.0.1',
+        'http://localhost:3000',
+        'http://localhost:5173',
+    ];
+    
+    // โหลดค่า FRONTEND_ORIGINS จาก config/config.php ถ้ามี
+    $config = require __DIR__ . '/config.php';
+    if (!empty($config['frontend_origins'])) {
+        $extra_origins = explode(',', $config['frontend_origins']);
+        foreach ($extra_origins as $o) {
+            $allowed_origins[] = trim($o);
+        }
     }
+
+    if (in_array($origin, $allowed_origins) || empty($origin)) {
+        header("Access-Control-Allow-Origin: " . ($origin ?: '*'));
+    } else {
+        // ในกรณี Production จริง ควรใส่โดเมนหลักของเว็บที่นี่แทน *
+        header("Access-Control-Allow-Origin: " . $origin); 
+    }
+    
     header("Access-Control-Allow-Credentials: true");
     header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
