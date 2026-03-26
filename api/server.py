@@ -42,8 +42,9 @@ from routes.alerts import alerts_bp
 from routes.user_routes import user_bp
 from routes.webhook import webhook_bp
 from routes.jobs import jobs_bp
+from routes.admin import admin_bp
 
-for bp in (main_bp, prices_bp, forecast_bp, auth_bp, alerts_bp, user_bp, webhook_bp, jobs_bp):
+for bp in (main_bp, prices_bp, forecast_bp, auth_bp, alerts_bp, user_bp, webhook_bp, jobs_bp, admin_bp):
     app.register_blueprint(bp)
 
 # ---------------------------------------------------------------------------

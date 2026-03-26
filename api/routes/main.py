@@ -66,6 +66,12 @@ def api_meta():
 def health():
     return jsonify(ok=True, time=datetime.now().isoformat())
 
+@main_bp.route("/api/admin", methods=["GET"])
+@main_bp.route("/api/admin/<path:path>", methods=["GET"])
+def redirect_api_admin(path=""):
+    from flask import redirect
+    return redirect("/admin/" + path)
+
 @main_bp.route("/<path:path>", methods=["GET"])
 def static_files(path):
     """Serve frontend static assets (js/, img/, components/, css/).
