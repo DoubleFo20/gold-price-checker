@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Price Tracking - Admin Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="ph ph-coins logo-icon"></i>
+                <span>GPT Admin</span>
+            </div>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-target="dashboard">
+                <i class="ph ph-squares-four"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-target="gold-price">
+                <i class="ph ph-trend-up"></i>
+                <span>Gold Price</span>
+            </a>
+            <a href="#" class="nav-item" data-target="news">
+                <i class="ph ph-newspaper"></i>
+                <span>News</span>
+            </a>
+            <a href="#" class="nav-item" data-target="alerts">
+                <i class="ph ph-bell"></i>
+                <span>Alerts</span>
+            </a>
+            <a href="#" class="nav-item" data-target="users">
+                <i class="ph ph-users"></i>
+                <span>Users</span>
+            </a>
+            <a href="#" class="nav-item" data-target="forecast">
+                <i class="ph ph-chart-line-up"></i>
+                <span>Forecast</span>
+            </a>
+            <a href="#" class="nav-item" data-target="logs">
+                <i class="ph ph-terminal-window"></i>
+                <span>System Logs</span>
+            </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <a href="#" class="nav-item" data-target="settings">
+                <i class="ph ph-gear"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+        
+        <!-- TOP NAVBAR -->
+        <header class="top-navbar">
+            <div class="nav-left">
+                <h2 id="page-title">Dashboard Overview</h2>
+            </div>
+            <div class="nav-right">
+                <div class="search-bar">
+                    <i class="ph ph-magnifying-glass"></i>
+                    <input type="text" placeholder="Search...">
+                </div>
+                <button class="btn-icon">
+                    <i class="ph ph-bell"></i>
+                    <span class="badge">3</span>
+                </button>
+                <div class="user-profile">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=D4AF37&color=fff" alt="Admin" class="avatar">
+                    <div class="user-info">
+                        <span class="user-name">Admin Admin</span>
+                        <span class="user-role">Super Admin</span>
+                    </div>
+                    <i class="ph ph-caret-down"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- PAGE CONTENTS (SPA Style) -->
+        <div class="page-container">
+            
+            <!-- SECTION: DASHBOARD -->
+            <section id="section-dashboard" class="page-section active">
+                <div class="kpi-grid">
+                    <!-- KPI Card 1 -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Thai Bar Gold (Sell)</span>
+                            <i class="ph ph-coins kpi-icon"></i>
+                        </div>
+                        <div class="kpi-value">฿41,100</div>
+                        <div class="kpi-trend positive">
+                            <i class="ph ph-trend-up"></i>
+                            <span>+100 (Today)</span>
+                        </div>
+                    </div>
+                    <!-- KPI Card 2 -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">World Gold (XAUUSD)</span>
+                            <i class="ph ph-globe-hemisphere-west kpi-icon"></i>
+                        </div>
+                        <div class="kpi-value">$2,340.50</div>
+                        <div class="kpi-trend negative">
+                            <i class="ph ph-trend-down"></i>
+                            <span>-$12.00 (Today)</span>
+                        </div>
+                    </div>
+                    <!-- KPI Card 3 -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Active Users</span>
+                            <i class="ph ph-users kpi-icon"></i>
+                        </div>
+                        <div class="kpi-value">1,245</div>
+                        <div class="kpi-trend positive">
+                            <i class="ph ph-trend-up"></i>
+                            <span>+12 (This week)</span>
+                        </div>
+                    </div>
+                    <!-- KPI Card 4 -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">System Status</span>
+                            <i class="ph ph-check-circle kpi-icon" style="color: #10B981;"></i>
+                        </div>
+                        <div class="kpi-value" style="color: #10B981;">API Online</div>
+                        <div class="kpi-trend text-muted">
+                            <span>Last checked: Just now</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="chart-container card">
+                        <div class="card-header">
+                            <h3>7-Days Price Trend</h3>
+                            <select class="select-sm">
+                                <option>Thai Bar Gold</option>
+                                <option>World Gold</option>
+                            </select>
+                        </div>
+                        <div class="card-body chart-placeholder">
+                            <!-- Placeholder for chart.js or similar -->
+                            <div style="height: 300px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 8px; border: 1px dashed #e2e8f0; color: #a0aec0;">
+                                <i class="ph ph-chart-line-up" style="font-size: 48px; margin-bottom: 10px; display: block;"></i>
+                                <span>Chart Visualization Placeholder</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="recent-activity card">
+                        <div class="card-header">
+                            <h3>Recent System Activity</h3>
+                        </div>
+                        <div class="card-body">
+                            <ul class="activity-list">
+                                <li>
+                                    <div class="activity-icon bg-gold-light"><i class="ph ph-bell text-gold"></i></div>
+                                    <div class="activity-content">
+                                        <p>Price Alert Triggered: ฿41,000</p>
+                                        <span>2 mins ago</span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <div class="activity-icon bg-green-light"><i class="ph ph-user-plus text-green"></i></div>
+                                    <div class="activity-content">
+                                        <p>New user registered: sompong@email.com</p>
+                                        <span>15 mins ago</span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <div class="activity-icon bg-blue-light"><i class="ph ph-arrows-clockwise text-blue"></i></div>
+                                    <div class="activity-content">
+                                        <p>Cache updated from GTA</p>
+                                        <span>30 mins ago</span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <div class="activity-icon bg-red-light"><i class="ph ph-warning text-red"></i></div>
+                                    <div class="activity-content">
+                                        <p>Failed API call: News Service</p>
+                                        <span>1 hour ago</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: GOLD PRICE MANAGEMENT -->
+            <section id="section-gold-price" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header flex-between">
+                        <div>
+                            <h3>Price Management</h3>
+                            <p class="text-sm text-muted">Last Updated: Today 10:45 AM (Source: GTA)</p>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline"><i class="ph ph-arrows-clockwise"></i> Fetch Latest</button>
+                            <button class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Save to DB</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Bar Buy (฿)</label>
+                                <input type="number" class="form-control" value="41000">
+                            </div>
+                            <div class="form-group">
+                                <label>Bar Sell (฿)</label>
+                                <input type="number" class="form-control" value="41100">
+                            </div>
+                            <div class="form-group">
+                                <label>Ornament Buy (฿)</label>
+                                <input type="number" class="form-control" value="40265">
+                            </div>
+                            <div class="form-group">
+                                <label>Ornament Sell (฿)</label>
+                                <input type="number" class="form-control" value="41600">
+                            </div>
+                            <div class="form-group">
+                                <label>World Gold (USD/oz)</label>
+                                <input type="number" class="form-control" value="2340.50">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-24">
+                    <div class="card-header">
+                        <h3>Price History</h3>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Bar Sell</th>
+                                    <th>Bar Buy</th>
+                                    <th>World (USD)</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>2026-03-27 10:45</td>
+                                    <td>41,100</td>
+                                    <td>41,000</td>
+                                    <td>2,340.50</td>
+                                    <td><span class="badge badge-gray">Auto (GTA)</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2026-03-26 15:30</td>
+                                    <td>41,000</td>
+                                    <td>40,900</td>
+                                    <td>2,335.20</td>
+                                    <td><span class="badge badge-gray">Auto (GTA)</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2026-03-25 09:15</td>
+                                    <td>40,850</td>
+                                    <td>40,750</td>
+                                    <td>2,320.10</td>
+                                    <td><span class="badge badge-gold">Manual</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: NEWS MANAGEMENT -->
+            <section id="section-news" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header flex-between">
+                        <h3>News Articles</h3>
+                        <button class="btn btn-primary" id="btn-add-news"><i class="ph ph-plus"></i> Add Article</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Source</th>
+                                    <th>Published Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="cell-bold">ราคาทองวันนี้พุ่งทะลุ 41,000 บาท</td>
+                                    <td>Analysis</td>
+                                    <td>System</td>
+                                    <td>2026-03-27 09:00</td>
+                                    <td><span class="badge badge-green">Published</span></td>
+                                    <td>
+                                        <button class="btn-icon-sm text-blue"><i class="ph ph-pencil-simple"></i></button>
+                                        <button class="btn-icon-sm text-red"><i class="ph ph-trash"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-bold">เฟดส่งสัญญาณลดดอกเบี้ย</td>
+                                    <td>World News</td>
+                                    <td>Reuters</td>
+                                    <td>2026-03-26 18:45</td>
+                                    <td><span class="badge badge-gold">Draft</span></td>
+                                    <td>
+                                        <button class="btn-icon-sm text-blue"><i class="ph ph-pencil-simple"></i></button>
+                                        <button class="btn-icon-sm text-red"><i class="ph ph-trash"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Add other sections similarly as placeholders (Alerts, Users, Forecast, Logs, Settings) -->
+            <!-- They follow the same structure as above -->
+            <section id="section-alerts" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header"><h3>Alerts Management</h3></div>
+                    <div class="card-body">
+                        <p class="text-muted">Will load alerts list here via API.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="section-users" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header"><h3>User Management</h3></div>
+                    <div class="card-body">
+                        <p class="text-muted">Will load users list here via API.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="section-forecast" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header"><h3>Forecast Management</h3></div>
+                    <div class="card-body">
+                        <p class="text-muted">Will load forecast logs here via API.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="section-logs" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header"><h3>System Logs</h3></div>
+                    <div class="card-body">
+                        <p class="text-muted">Will load system logs here via API.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="section-settings" class="page-section hidden">
+                <div class="card">
+                    <div class="card-header"><h3>System Settings & API Keys</h3></div>
+                    <div class="card-body">
+                        <div class="form-grid max-w-lg">
+                            <div class="form-group">
+                                <label>Alpha Vantage API Key</label>
+                                <input type="password" class="form-control" value="xxxxxxxxxxxxxxxx">
+                            </div>
+                            <div class="form-group">
+                                <label>News API Key</label>
+                                <input type="password" class="form-control" value="xxxxxxxxxxxxxxxx">
+                            </div>
+                            <div class="form-group">
+                                <button class="btn btn-primary mt-16">Save Settings</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Script -->
+    <script src="js/admin.js"></script>
+</body>
+</html>
