@@ -66,7 +66,6 @@ def api_meta():
 def health():
     return jsonify(ok=True, time=datetime.now().isoformat())
 
-
 @main_bp.route("/<path:path>", methods=["GET"])
 def static_files(path):
     """Serve frontend static assets (js/, img/, components/, css/).
@@ -79,10 +78,18 @@ def static_files(path):
         return jsonify(ok=False, message="Forbidden"), 403
 
     full_path = os.path.join(PROJECT_ROOT, safe_path)
+    
+    # If the user requested a directory (e.g., /admin/), serve index.html inside it
+    if os.path.isdir(full_path):
+        index_file = os.path.join(full_path, "index.html")
+        if os.path.isfile(index_file):
+            return send_from_directory(full_path, "index.html")
+
+    # If the user requested a specific file, serve it
     if os.path.isfile(full_path):
         return send_from_directory(PROJECT_ROOT, safe_path)
 
-    # SPA fallback — serve index.html for unknown client-side routes
+    # SPA fallback — serve root index.html for unknown client-side routes
     index_path = os.path.join(PROJECT_ROOT, "index.html")
     if os.path.exists(index_path):
         return send_from_directory(PROJECT_ROOT, "index.html")
