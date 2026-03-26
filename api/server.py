@@ -104,10 +104,12 @@ def after_request(response):
 
 @app.route("/", methods=["GET"])
 def root():
-    # If we are on Render, PROJECT_ROOT should be the root of the project
-    if not os.path.exists(os.path.join(PROJECT_ROOT, "index.html")):
-        return f"Not Found: index.html not found in {PROJECT_ROOT}. Please check your Render 'Root Directory' setting.", 404
-    return send_from_directory(PROJECT_ROOT, "index.html")
+    return jsonify(ok=True, service="gold-price-checker-api", status="ok"), 200
+
+
+@app.route("/api/test", methods=["GET"])
+def api_test():
+    return jsonify(ok=True, message="api test ok"), 200
 
 
 @app.route("/api/meta", methods=["GET"])
@@ -134,12 +136,7 @@ def health():
 
 @app.route("/<path:path>", methods=["GET"])
 def static_files(path):
-    if path.startswith("api/"):
-        return jsonify(ok=False, message="Not Found"), 404
-    full_path = os.path.join(PROJECT_ROOT, path)
-    if os.path.isfile(full_path):
-        return send_from_directory(PROJECT_ROOT, path)
-    return send_from_directory(PROJECT_ROOT, "index.html")
+    return jsonify(ok=False, message="Not Found", path=path), 404
 
 
 def _cookie_secure() -> bool:
