@@ -101,6 +101,10 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
 
+@app.route("/ping")
+def ping():
+    return "pong"
+
 
 @app.route("/", methods=["GET"])
 def root():
