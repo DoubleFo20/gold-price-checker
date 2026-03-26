@@ -1,7 +1,23 @@
+# .venv/
+# __pycache__/
+# .env
+# ngrok.exe
+# *.pyc
+# .git/
+# .DS_Store
+# Python
 .venv/
 __pycache__/
-.env
-ngrok.exe
 *.pyc
-.git/
+
+# Environment
+.env
+
+# Local files
+err.txt
+ngrok.exe
 .DS_Store
+.vscode/
+
+# Git
+.git/

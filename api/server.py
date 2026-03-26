@@ -49,6 +49,16 @@ except ImportError:
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# --- Fallback logic for PROJECT_ROOT on deployment (e.g. Render) ---
+if not os.path.exists(os.path.join(PROJECT_ROOT, "index.html")):
+    # If index.html is not in the parent, check if it's in the same directory (current dir)
+    if os.path.exists(os.path.join(os.path.dirname(__file__), "index.html")):
+        PROJECT_ROOT = os.path.dirname(__file__)
+    # Or maybe it's in a 'static' folder inside 'api'
+    elif os.path.exists(os.path.join(os.path.dirname(__file__), "static", "index.html")):
+        PROJECT_ROOT = os.path.join(os.path.dirname(__file__), "static")
+
+
 app = Flask(__name__)
 
 def _load_allowed_origins():
@@ -94,6 +104,9 @@ def after_request(response):
 
 @app.route("/", methods=["GET"])
 def root():
+    # If we are on Render, PROJECT_ROOT should be the root of the project
+    if not os.path.exists(os.path.join(PROJECT_ROOT, "index.html")):
+        return f"Not Found: index.html not found in {PROJECT_ROOT}. Please check your Render 'Root Directory' setting.", 404
     return send_from_directory(PROJECT_ROOT, "index.html")
 
 

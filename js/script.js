@@ -2,6 +2,21 @@
 if (typeof sw === 'undefined') var sw = null;
 
 /* ===========================
+   Helper: Escape HTML
+   =========================== */
+function escapeHTML(str) {
+    if (!str) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(str).replace(/[&<>"']/g, function (m) { return map[m]; });
+}
+
+/* ===========================
    Loader: โหลด Components
    =========================== */
 async function loadComponent(url, targetId) {
@@ -1659,8 +1674,8 @@ function renderNotifications(notifs) {
                 <i class="fas ${getNotifIcon(n.type)}"></i>
             </div>
             <div class="notif-content">
-                <div class="notif-title">${n.title}</div>
-                <div class="notif-message">${n.message}</div>
+                <div class="notif-title">${escapeHTML(n.title)}</div>
+                <div class="notif-message">${escapeHTML(n.message)}</div>
                 <div class="notif-time">${formatTimeAgo(n.created_at)}</div>
             </div>
         </a>
