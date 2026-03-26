@@ -1,13 +1,12 @@
 services:
   - type: web
     name: gold-price-checker-api
-    runtime: python
+    env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --chdir api server:app
+    startCommand: gunicorn --chdir api server:app --workers 2 --threads 4
+    plan: free
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
-      - key: COOKIE_SECURE
-        value: "true"
       - key: APP_ENV
         value: production
