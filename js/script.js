@@ -1408,19 +1408,37 @@ async function fetchGoldNews() {
 
     try {
         const r = await fetch(url);
-        if (!r.ok) throw new Error(r.statusText);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
 
-        // The Python backend returns an array of articles directly or throws a 500 error
+        // PHP NewsAPI proxy returns { status, totalResults, articles: [...] }
+        // Python backend returns an array directly
+        let articles = null;
         if (Array.isArray(j)) {
-             renderNews(j);
+            articles = j;
+        } else if (j && Array.isArray(j.articles)) {
+            articles = j.articles;
+        }
+
+        if (articles && articles.length > 0) {
+            // Normalize to format renderNews expects
+            const normalized = articles.map(a => ({
+                title:        a.title        || a.headline || '',
+                link:         a.url          || a.link     || '#',
+                pubDate:      a.publishedAt  || a.pubDate  || '',
+                source:       a.source?.name || a.source   || '',
+                description:  a.description  || '',
+            }));
+            renderNews(normalized);
+        } else if (j && j.status === 'error') {
+            throw new Error(j.message || 'NewsAPI error');
         } else {
-             throw new Error("Invalid news format received from server");
+            box.innerHTML = `<p style="text-align:center;color:#999;">ไม่มีข่าวสารในขณะนี้</p>`;
         }
 
     } catch (e) {
         console.error('News error:', e);
-        box.innerHTML = `<p>เกิดข้อผิดพลาดในการโหลดข่าว</p>`;
+        box.innerHTML = `<p style="text-align:center;color:#e57373;">เกิดข้อผิดพลาดในการโหลดข่าว: ${e.message}</p>`;
     }
 }
 /* ==========  วาดกราฟพยากรณ์ (ARIMA + Confidence Band) ========== */
