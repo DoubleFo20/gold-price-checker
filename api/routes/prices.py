@@ -200,43 +200,74 @@ def api_intraday():
 
 @prices_bp.route("/api/news")
 def api_news():
-    from utils.config import CONFIG
     import requests
-    import urllib.parse
+    import xml.etree.ElementTree as ET
     from datetime import datetime
+    import urllib.parse
     
-    api_key = CONFIG.get("NEWSAPI_KEY", "")
-    query = urllib.parse.quote(request.args.get("q", "gold"))
+    # 1. รับคำค้นหา ดึงค่าเริ่มต้นเป็น "ราคาทอง"
+    query = request.args.get("q", "ราคาทอง")
+    if query.lower() == "gold":
+        # ถ้า frontend ขอ gold เปลี่ยนเป็นภาษาไทยเพื่อให้เหมาะกับผู้ใช้คนไทย
+        query = "ราคาทอง"
+        
+    encoded_query = urllib.parse.quote(query)
     
-    if not api_key:
-        # Fallback to Mock Data if API Key is not set in environment
+    # 2. ใช้ Google News RSS แบบรองรับภาษาไทย
+    rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=th&gl=TH&ceid=TH:th"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    try:
+        resp = requests.get(rss_url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"Google News RSS returned status {resp.status_code}")
+            
+        root = ET.fromstring(resp.text)
+        articles = []
+        
+        # 3. แปลง XML เป็นโครงสร้างเดียวกับที่ frontend (NewsAPI format) รองรับ
+        for item in root.findall('.//item')[:10]:  # ดึงมา 10 ข่าวล่าสุด
+            title = item.find('title')
+            link = item.find('link')
+            pub_date = item.find('pubDate')
+            source = item.find('source')
+            desc = item.find('description')
+            
+            # ลบชื่อสำนักข่าวออกจากท้าย title ถ้ายาวเกินไป (Google News ชอบต่อท้ายด้วย " - Thairath" เป็นต้น)
+            title_text = title.text if title is not None else ""
+            if " - " in title_text:
+                title_text = " - ".join(title_text.split(" - ")[:-1])
+                
+            articles.append({
+                "title": title_text,
+                "url": link.text if link is not None else "#",
+                "publishedAt": pub_date.text if pub_date is not None else datetime.now().isoformat(),
+                "source": {
+                    "name": source.text if source is not None else "Google News"
+                },
+                "description": "" # Google News ใช้ HTML ปนมาใน description เยอะมาก ให้ว่างไว้เพื่อให้ UI สะอาด
+            })
+            
+        return jsonify({
+            "status": "ok",
+            "totalResults": len(articles),
+            "articles": articles
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Fallback to Mock Data if error
         mock_news = {
             "status": "ok",
             "articles": [
                 {
-                    "title": "[Demo] ราคาทองวันนี้แนวโน้มผันผวน",
-                    "description": "ยังไม่ได้ใส่ NEWSAPI_KEY ในการตั้งค่า Environment ของระบบ (นี่คือข้อมูลจำลอง)",
+                    "title": "[Demo] ราคาทองวันนี้ สมาคมค้าทองคำประกาศ...",
+                    "description": "เกิดข้อผิดพลาดในการดึงข้อมูลจากดึงจากข่าว (นี่คือข้อมูลจำลอง)",
                     "url": "#",
-                    "source": {"name": "System DEMO"},
-                    "publishedAt": datetime.now().isoformat()
-                },
-                {
-                    "title": "[Demo] เฟดส่งสัญญาณคงดอกเบี้ย",
-                    "description": "กรุณาใส่ NEWSAPI_KEY เพื่อดึงข่าวจริงจากแหล่งเชื่อถือได้",
-                    "url": "#",
-                    "source": {"name": "System DEMO"},
+                    "source": {"name": "ระบบข่าวสำรอง"},
                     "publishedAt": datetime.now().isoformat()
                 }
             ]
         }
         return jsonify(mock_news), 200
-
-    url = f"https://newsapi.org/v2/everything?q={query}&pageSize=10&language=en&sortBy=publishedAt&apiKey={api_key}"
-    headers = {"User-Agent": "GoldPriceChecker/1.0"}
-    
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        return jsonify(resp.json()), resp.status_code
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
