@@ -120,6 +120,13 @@ async function login() {
     const password = document.getElementById('login-password')?.value;
     if (!email || !password) return alert('กรุณากรอกอีเมลและรหัสผ่าน');
 
+    const btn = document.getElementById('login-button');
+    const originalText = btn ? btn.innerText : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
+    }
+
     try {
         const res = await fetch(`${window.APP_CONFIG.PHP_API_BASE}/auth/login.php`, {
             method: 'POST',
@@ -135,19 +142,20 @@ async function login() {
         }
 
         hideLoginModal();
-        alert('เข้าสู่ระบบสำเร็จ!');
 
-        // [แก้ไข] ตรวจสอบ Role และ Redirect
         if (data.user && data.user.role === 'admin') {
-            window.location.href = 'api/admin/'; // Redirect ไปหน้า Admin
+            window.location.href = '/admin/';
         } else {
-            // สำหรับ User ทั่วไป ให้ตรวจสอบ Session ใหม่เพื่ออัปเดตหน้าเว็บ
             await checkSession();
         }
 
     } catch (error) {
         console.error('Login failed:', error);
         alert(error.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }
     }
 }
 
@@ -264,17 +272,14 @@ async function checkSession() {
 
 async function logout() {
     if (!confirm('ต้องการออกจากระบบ?')) return;
-    try {
-        await fetch(`${window.APP_CONFIG.PHP_API_BASE}/auth/logout.php`, { method: 'POST', credentials: 'include' });
-    } finally {
-        window.isLoggedIn = false;
-        window.currentUser = null;
-        isLoggedIn = false;
-        currentUser = null;
-        localStorage.clear();
-        window.userEmail = null; // Clear user email on logout
-        window.location.reload();
-    }
+    // Optimistic logout: clear state & reload immediately, API call in background
+    localStorage.clear();
+    window.isLoggedIn = false;
+    window.currentUser = null;
+    window.userEmail = null;
+    // Fire logout API in background — don’t await it
+    fetch(`${window.APP_CONFIG.PHP_API_BASE}/auth/logout.php`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    window.location.reload();
 }
 
 function loadUserFromStorage() {
@@ -323,6 +328,10 @@ function updateUIAfterLogin() {
         }
         if (usernameDisplay) {
             usernameDisplay.textContent = window.currentUser.name || 'ผู้ใช้';
+        }
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) {
+            adminLink.style.display = (window.currentUser.role === 'admin') ? 'block' : 'none';
         }
     } else {
         if (loginMenu) loginMenu.style.display = 'list-item';
@@ -2097,6 +2106,12 @@ async function initializeApp() {
     document.getElementById('login-button')?.addEventListener('click', login);
     document.getElementById('register-button')?.addEventListener('click', register);
     document.getElementById('logoutBtn')?.addEventListener('click', (e) => { e.preventDefault(); logout(); });
+
+    // Pre-warm Render server in background so login is fast when user clicks
+    setTimeout(() => {
+        fetch('/ping', { method: 'GET', cache: 'no-store' }).catch(() => {});
+    }, 800);
+
     document.getElementById('forgot-password-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         setAuthMode('forgot');
