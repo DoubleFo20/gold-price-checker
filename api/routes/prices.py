@@ -225,6 +225,8 @@ def api_news():
         root = ET.fromstring(resp.text)
         articles = []
         
+        import re
+        
         # 3. แปลง XML เป็นโครงสร้างเดียวกับที่ frontend (NewsAPI format) รองรับ
         for item in root.findall('.//item')[:10]:  # ดึงมา 10 ข่าวล่าสุด
             title = item.find('title')
@@ -233,19 +235,30 @@ def api_news():
             source = item.find('source')
             desc = item.find('description')
             
-            # ลบชื่อสำนักข่าวออกจากท้าย title ถ้ายาวเกินไป (Google News ชอบต่อท้ายด้วย " - Thairath" เป็นต้น)
-            title_text = title.text if title is not None else ""
+            # ลบชื่อสำนักข่าวออกจากท้าย title ถ้ายาวเกินไป
+            title_text = (title.text or "").strip()
             if " - " in title_text:
                 title_text = " - ".join(title_text.split(" - ")[:-1])
                 
+            # ตัดช่องว่างบรรทัดใหม่จาก URL (สาเหตุหลักที่ทำให้ลิงก์ไปหน้า about:blank)
+            url_text = (link.text or "#").strip()
+            
+            # ดึงข้อความเพียวๆ จาก description ที่เป็น HTML
+            desc_text = ""
+            if desc is not None and desc.text:
+                desc_text = re.sub('<[^<]+>', '', desc.text).strip()
+                # ตัดข้อความให้สั้นลง
+                if len(desc_text) > 120:
+                    desc_text = desc_text[:117] + "..."
+                
             articles.append({
                 "title": title_text,
-                "url": link.text if link is not None else "#",
-                "publishedAt": pub_date.text if pub_date is not None else datetime.now().isoformat(),
+                "url": url_text,
+                "publishedAt": (pub_date.text or datetime.now().isoformat()).strip(),
                 "source": {
-                    "name": source.text if source is not None else "Google News"
+                    "name": (source.text or "Google News").strip()
                 },
-                "description": "" # Google News ใช้ HTML ปนมาใน description เยอะมาก ให้ว่างไว้เพื่อให้ UI สะอาด
+                "description": desc_text
             })
             
         return jsonify({
