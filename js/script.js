@@ -1403,8 +1403,9 @@ async function fetchGoldNews() {
     if (!box) return;
     box.textContent = 'กำลังโหลดข่าวสารล่าสุด...';
 
-    // Point to the PHP proxy which handles Thai news and fallbacks
-    const url = window.APP_CONFIG?.API?.NEWS || '/api/api/proxy/news.php?q=gold';
+    // Point to the Python backend which handles NewsAPI securely
+    const endpoint = window.APP_CONFIG?.API?.NEWS || '/api/news';
+    const url = buildPythonApiUrl(endpoint);
 
     try {
         const r = await fetch(url);

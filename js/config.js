@@ -40,7 +40,7 @@ window.APP_CONFIG = {
   API: {
     THAI_PRICE: '/api/thai-gold-price',
     WORLD_PRICE: '/api/world-gold-price',
-    NEWS: '/api/api/proxy/news.php?q=gold',
+    NEWS: '/api/news',
     HISTORICAL: '/api/historical'
   }
 };

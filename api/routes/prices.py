@@ -196,3 +196,25 @@ def api_intraday():
         key = f"intraday_{safe_range if safe_range in ('1d', '5d', '1w', '1mo') else '1d'}"
         intraday_cache[key] = {"data": data, "ts": time.time()}
         return jsonify(data), 200
+
+
+@prices_bp.route("/api/news")
+def api_news():
+    from utils.config import CONFIG
+    import requests
+    import urllib.parse
+    
+    api_key = CONFIG.get("NEWSAPI_KEY", "")
+    query = urllib.parse.quote(request.args.get("q", "gold"))
+    if not api_key:
+        return jsonify({"status": "error", "message": "API Key is missing in configuration."}), 500
+
+    url = f"https://newsapi.org/v2/everything?q={query}&pageSize=10&language=en&sortBy=publishedAt&apiKey={api_key}"
+    headers = {"User-Agent": "GoldPriceChecker/1.0"}
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500

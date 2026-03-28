@@ -9,7 +9,7 @@ const API = {
     adminUsers:   '/api/admin/users',
     adminForecasts: '/api/admin/forecasts',
     runJob:       '/api/jobs/run',
-    news:         '/api/api/proxy/news.php?q=gold',
+    news:         '/api/news',
 };
 
 let dashChart = null;
