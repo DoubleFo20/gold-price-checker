@@ -1,100 +1,431 @@
-// admin/js/admin.js
+// admin/js/admin.js v3 — real API connections
 
+const API = {
+    checkSession: '/api/api/auth/check_session.php',
+    thaiPrice:    '/api/thai-gold-price',
+    worldPrice:   '/api/world-gold-price',
+    adminStats:   '/api/admin/stats',
+    adminAlerts:  '/api/admin/alerts',
+    adminUsers:   '/api/admin/users',
+    adminForecasts: '/api/admin/forecasts',
+    runJob:       '/api/jobs/run',
+    news:         '/api/news',
+};
+
+let dashChart = null;
+
+/* ===========================
+   INIT
+   =========================== */
 document.addEventListener('DOMContentLoaded', async () => {
-    
-    // 1. Check Authentication & Admin Role
+    await checkAuth();
+    setupNav();
+    setupTopbar();
+    loadDashboard();
+});
+
+/* ===========================
+   AUTH CHECK
+   =========================== */
+async function checkAuth() {
     try {
-        const res = await fetch('/api/api/auth/check_session.php', { method: 'POST' });
+        const res  = await fetch(API.checkSession, { method: 'POST', credentials: 'include' });
         const data = await res.json();
-        
-        if (!data.authenticated || data.user.role !== 'admin') {
-            alert('คุณไม่มีสิทธิ์เข้าถึงหน้านี้ (Admin Only)\nระบบจะพากลับไปหน้าผู้ใช้งานทั่วไป');
+        if (!data.authenticated || data.user?.role !== 'admin') {
             window.location.href = '/';
             return;
         }
-
-        // Update UI with Admin User Data
-        document.querySelector('.user-name').innerText = data.user.name || 'Admin';
-        document.querySelector('.user-role').innerText = data.user.role || 'Super Admin';
-        document.querySelector('.avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.user.name || 'Admin')}&background=D4AF37&color=fff`;
-
+        const name = data.user.name || 'Admin';
+        document.getElementById('user-name-display').textContent = name;
+        document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+        document.getElementById('settings-user-info').textContent =
+            `${name} — ${data.user.email || ''}  (role: ${data.user.role})`;
     } catch (e) {
-        console.error('Auth Check Error:', e);
-        alert('เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์');
+        console.error('Auth error', e);
         window.location.href = '/';
-        return;
     }
+}
 
-    // 2. Load Dashboard KPIs
-    async function loadDashboardStats() {
-        try {
-            const res = await fetch('/api/admin/stats');
-            const result = await res.json();
-            
-            if (result.success && result.data) {
-                const d = result.data;
-                // Update Thai Gold Card
-                const tbSellStr = (d.thai_gold.bar_sell || 0).toLocaleString();
-                document.querySelectorAll('.kpi-value')[0].innerText = `฿${tbSellStr}`;
-                
-                // Update World Gold Card
-                const wPriceStr = (d.world_gold.price || 0).toLocaleString();
-                document.querySelectorAll('.kpi-value')[1].innerText = `$${wPriceStr}`;
-                
-                // Update Active Users Card
-                const usersCount = (d.users_count || 0).toLocaleString();
-                document.querySelectorAll('.kpi-value')[2].innerText = usersCount;
-                
-                // Alert System Status (mock for now, API says online)
-                document.querySelectorAll('.kpi-value')[3].innerText = 'API Online';
-            }
-        } catch(e) {
-            console.error('Failed to load stats:', e);
-        }
-    }
-    loadDashboardStats();
-
-
-    // 3. Sidebar Navigation Logic
-    const navItems = document.querySelectorAll('.sidebar-nav .nav-item, .sidebar-footer .nav-item');
-    const pageSections = document.querySelectorAll('.page-section');
+/* ===========================
+   SIDEBAR NAVIGATION
+   =========================== */
+function setupNav() {
+    const links   = document.querySelectorAll('.nav-link[data-target]');
+    const sections = document.querySelectorAll('.page-section');
     const pageTitle = document.getElementById('page-title');
 
-    navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
+    links.forEach(link => {
+        link.addEventListener('click', e => {
             e.preventDefault();
-            
-            navItems.forEach(n => n.classList.remove('active'));
-            item.classList.add('active');
-
-            const targetId = item.getAttribute('data-target');
-            pageSections.forEach(section => {
-                section.classList.add('hidden');
-                section.classList.remove('active');
+            links.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+            const target = link.dataset.target;
+            sections.forEach(s => {
+                s.classList.remove('active');
+                s.classList.add('hidden');
             });
-            
-            const targetSection = document.getElementById(`section-${targetId}`);
-            if (targetSection) {
-                targetSection.classList.remove('hidden');
-                setTimeout(() => targetSection.classList.add('active'), 10);
-            }
+            const sec = document.getElementById(`section-${target}`);
+            if (sec) { sec.classList.remove('hidden'); sec.classList.add('active'); }
+            pageTitle.textContent = link.querySelector('span')?.textContent || target;
+            loadSection(target);
 
-            const titleText = item.querySelector('span').innerText;
-            if (titleText === 'Dashboard') {
-                pageTitle.innerText = 'Dashboard Overview';
-                loadDashboardStats(); // reload numbers
-            } else {
-                pageTitle.innerText = titleText;
-            }
+            // close mobile sidebar
+            document.getElementById('sidebar')?.classList.remove('open');
         });
     });
 
-    // Mock functionality: Add News Button
-    const btnAddNews = document.getElementById('btn-add-news');
-    if(btnAddNews) {
-        btnAddNews.addEventListener('click', () => {
-            alert("This will open a modal to add a new article. (Mockup functionality)");
-        });
-    }
+    // Mobile toggle
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
 
-});
+    // Refresh all
+    document.getElementById('btn-refresh-all')?.addEventListener('click', loadDashboard);
+}
+
+/* ===========================
+   TOPBAR USER MENU
+   =========================== */
+function setupTopbar() {
+    document.getElementById('btn-logout-topbar')?.addEventListener('click', async e => {
+        e.preventDefault();
+        localStorage.clear();
+        fetch('/api/api/auth/logout.php', { method: 'POST', credentials: 'include' }).catch(() => {});
+        window.location.href = '/';
+    });
+}
+
+/* ===========================
+   SECTION LOADER
+   =========================== */
+function loadSection(target) {
+    switch (target) {
+        case 'dashboard':  loadDashboard();  break;
+        case 'gold-price': loadGoldPrice();  break;
+        case 'news':       loadNews();       break;
+        case 'alerts':     loadAlerts();     break;
+        case 'users':      loadUsers();      break;
+        case 'forecast':   loadForecasts();  break;
+        case 'logs':       loadLogs();       break;
+        case 'settings':   setupSettings();  break;
+    }
+}
+
+/* ===========================
+   DASHBOARD
+   =========================== */
+async function loadDashboard() {
+    loadThaiPrice();
+    loadWorldPrice();
+    loadAdminStats();
+    loadDashChart();
+}
+
+async function loadThaiPrice() {
+    try {
+        const res  = await fetch(API.thaiPrice);
+        const data = await res.json();
+        document.getElementById('kv-thai-bar-sell').textContent = `฿${Number(data.bar_sell || 0).toLocaleString()}`;
+        const diff = data.change_baht ?? null;
+        if (diff !== null) {
+            const sign = diff >= 0 ? '+' : '';
+            document.getElementById('kv-thai-change').textContent = `${sign}${Number(diff).toLocaleString()} วันนี้`;
+        } else {
+            document.getElementById('kv-thai-change').textContent = 'อัปเดตล่าสุด: ' + (data.date || '—');
+        }
+        // also fill price live grid on dashboard
+        renderPriceLiveGrid('price-live-grid', data);
+        // also for fetch button
+        document.getElementById('btn-fetch-price')?.addEventListener('click', loadThaiPrice);
+    } catch (e) {
+        document.getElementById('kv-thai-bar-sell').textContent = 'Error';
+        console.error(e);
+    }
+}
+
+async function loadWorldPrice() {
+    try {
+        const res  = await fetch(API.worldPrice);
+        const data = await res.json();
+        const price = data.price_usd_per_ounce ?? data.price ?? 0;
+        document.getElementById('kv-world-price').textContent = `$${Number(price).toLocaleString(undefined, {maximumFractionDigits:2})}`;
+        document.getElementById('kv-world-change').textContent = data.source_note || 'XAUUSD';
+    } catch(e) {
+        document.getElementById('kv-world-price').textContent = 'Error';
+    }
+}
+
+async function loadAdminStats() {
+    try {
+        const res  = await fetch(API.adminStats, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.data) {
+            const d = data.data;
+            document.getElementById('kv-users').textContent = Number(d.users_count).toLocaleString();
+            document.getElementById('kv-alerts-count').textContent = `Alerts: ${d.alerts_count}`;
+            document.getElementById('badge-users').textContent = d.users_count;
+            document.getElementById('badge-alerts').textContent = d.alerts_count;
+        }
+    } catch(e) { console.error('stats error', e); }
+
+    // ping for status
+    try {
+        const t0 = Date.now();
+        await fetch('/ping');
+        const ms = Date.now() - t0;
+        document.getElementById('kv-status').textContent = 'API Online';
+        document.getElementById('kv-status-time').textContent = `Response: ${ms}ms`;
+    } catch(e) {
+        document.getElementById('kv-status').textContent = 'API Offline';
+        document.getElementById('kv-status').classList.replace('green-text', 'red-text');
+    }
+}
+
+async function loadDashChart() {
+    try {
+        const res  = await fetch('/api/historical?days=7');
+        const data = await res.json();
+        document.getElementById('chart-source').textContent = data.source || 'Historical';
+        const ctx = document.getElementById('dash-chart').getContext('2d');
+        if (dashChart) dashChart.destroy();
+        dashChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels || [],
+                datasets: [{
+                    label: 'ราคาทองแท่ง (THB)',
+                    data: data.thai_values || [],
+                    borderColor: '#d4a843',
+                    backgroundColor: 'rgba(212,168,67,0.08)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#d4a843',
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#555e72', font: { size: 11 } }, grid: { color: '#232737' } },
+                    y: { ticks: { color: '#555e72', font: { size: 11 }, callback: v => `฿${v.toLocaleString()}` }, grid: { color: '#232737' } }
+                }
+            }
+        });
+    } catch(e) { document.getElementById('chart-source').textContent = 'Error loading chart'; }
+}
+
+/* ===========================
+   GOLD PRICE SECTION
+   =========================== */
+async function loadGoldPrice() {
+    document.getElementById('price-last-update').textContent = 'กำลังดึงข้อมูล...';
+    try {
+        const res  = await fetch(API.thaiPrice);
+        const data = await res.json();
+        document.getElementById('price-last-update').textContent = `อัปเดตล่าสุด: ${data.date || '—'}  แหล่งข้อมูล: ${data.source || 'GTA'}`;
+        renderPriceLiveGrid('price-detail-grid', data, true);
+    } catch(e) { document.getElementById('price-last-update').textContent = 'Error loading price'; }
+
+    // Fetch latest button
+    document.getElementById('btn-fetch-latest')?.addEventListener('click', loadGoldPrice);
+
+    // Price history table
+    try {
+        const res  = await fetch('/api/admin/price-history', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.items?.length) {
+            const fmt = v => v ? Number(v).toLocaleString() : '—';
+            document.getElementById('price-history-tbody').innerHTML = data.items.map(r => `
+                <tr>
+                    <td>${r.date || '—'}</td>
+                    <td class="text-gold">฿${fmt(r.bar_buy)}</td>
+                    <td class="text-gold">฿${fmt(r.bar_sell)}</td>
+                    <td>฿${fmt(r.ornament_buy)}</td>
+                    <td>฿${fmt(r.ornament_sell)}</td>
+                </tr>`).join('');
+        } else {
+            document.getElementById('price-history-tbody').innerHTML =
+                '<tr><td colspan="5" class="text-center text-sub">ยังไม่มีประวัติราคา</td></tr>';
+        }
+    } catch(e) { console.error(e); }
+}
+
+function renderPriceLiveGrid(id, data, lg = false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const fmt = v => v ? Number(v).toLocaleString() : '—';
+    el.innerHTML = `
+        <div class="price-tile"><div class="price-tile-label">ทองแท่ง 96.5% — รับซื้อ</div><div class="price-tile-value buy">฿${fmt(data.bar_buy)}</div></div>
+        <div class="price-tile"><div class="price-tile-label">ทองแท่ง 96.5% — ขายออก</div><div class="price-tile-value sell">฿${fmt(data.bar_sell)}</div></div>
+        <div class="price-tile"><div class="price-tile-label">ทองรูปพรรณ 90% — รับซื้อ</div><div class="price-tile-value buy">฿${fmt(data.ornament_buy)}</div></div>
+        <div class="price-tile"><div class="price-tile-label">ทองรูปพรรณ 90% — ขายออก</div><div class="price-tile-value sell">฿${fmt(data.ornament_sell)}</div></div>
+    `;
+    el.className = `price-live-grid${lg ? ' lg' : ''}`;
+}
+
+/* ===========================
+   NEWS SECTION
+   =========================== */
+async function loadNews() {
+    try {
+        const res  = await fetch(API.news);
+        const items = await res.json();
+        if (!Array.isArray(items) || !items.length) {
+            document.getElementById('news-tbody').innerHTML =
+                '<tr><td colspan="4" class="text-center text-sub">ไม่มีข่าว</td></tr>';
+            return;
+        }
+        document.getElementById('news-tbody').innerHTML = items.slice(0, 30).map(n => `
+            <tr>
+                <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(n.title || '—')}</td>
+                <td><span class="pill pill-gold">${esc(n.source || '—')}</span></td>
+                <td class="text-sub">${n.published_at ? n.published_at.slice(0,16) : '—'}</td>
+                <td>${n.link ? `<a href="${n.link}" target="_blank" style="color:var(--gold);font-size:12px;">เปิดอ่าน</a>` : '—'}</td>
+            </tr>`).join('');
+    } catch(e) {
+        document.getElementById('news-tbody').innerHTML =
+            '<tr><td colspan="4" class="text-center text-sub">Error: ' + e.message + '</td></tr>';
+    }
+    document.getElementById('btn-fetch-news')?.addEventListener('click', loadNews);
+}
+
+/* ===========================
+   ALERTS SECTION
+   =========================== */
+async function loadAlerts() {
+    try {
+        const res  = await fetch(API.adminAlerts, { credentials: 'include' });
+        const data = await res.json();
+        const items = data.items || [];
+        const pending   = items.filter(a => !a.triggered).length;
+        const triggered = items.filter(a =>  a.triggered).length;
+        document.getElementById('alerts-pending-count').textContent  = `รอแจ้งเตือน: ${pending}`;
+        document.getElementById('alerts-triggered-count').textContent = `แจ้งเตือนแล้ว: ${triggered}`;
+
+        const goldTypeLabel = t => t === 'ornament' ? 'รูปพรรณ' : t === 'world' ? 'โลก(USD)' : 'แท่ง';
+        const alertTypeLabel = t => t === 'above' ? '≥ ราคา' : '≤ ราคา';
+
+        document.getElementById('alerts-tbody').innerHTML = items.length
+            ? items.map(a => `<tr>
+                <td>${esc(a.email || '—')}</td>
+                <td>${goldTypeLabel(a.gold_type)}</td>
+                <td>${alertTypeLabel(a.alert_type)}</td>
+                <td class="text-gold">฿${Number(a.target_price).toLocaleString()}</td>
+                <td>${a.triggered
+                    ? '<span class="pill pill-green">แจ้งเตือนแล้ว</span>'
+                    : '<span class="pill pill-gold">รอแจ้งเตือน</span>'}</td>
+                <td class="text-sub">${a.created_at ? a.created_at.slice(0,16) : '—'}</td>
+              </tr>`).join('')
+            : '<tr><td colspan="6" class="text-center text-sub">ยังไม่มีการแจ้งเตือน</td></tr>';
+    } catch(e) {
+        document.getElementById('alerts-tbody').innerHTML =
+            `<tr><td colspan="6" class="text-center text-sub">Error: ${e.message}</td></tr>`;
+    }
+}
+
+/* ===========================
+   USERS SECTION
+   =========================== */
+async function loadUsers() {
+    try {
+        const res  = await fetch(API.adminUsers, { credentials: 'include' });
+        const data = await res.json();
+        const users = data.users || [];
+        document.getElementById('users-total-count').textContent = `ทั้งหมด: ${users.length}`;
+        document.getElementById('users-tbody').innerHTML = users.length
+            ? users.map(u => `<tr>
+                <td>${esc(u.name || '—')}</td>
+                <td>${esc(u.email || '—')}</td>
+                <td><span class="pill ${u.role === 'admin' ? 'pill-gold' : 'pill-blue'}">${esc(u.role)}</span></td>
+                <td class="text-sub">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
+                <td>${u.is_active ? '<span class="pill pill-green">Active</span>' : '<span class="pill pill-red">Inactive</span>'}</td>
+              </tr>`).join('')
+            : '<tr><td colspan="5" class="text-center text-sub">ไม่มีผู้ใช้งาน</td></tr>';
+    } catch(e) {
+        document.getElementById('users-tbody').innerHTML =
+            `<tr><td colspan="5" class="text-center text-sub">Error: ${e.message}</td></tr>`;
+    }
+}
+
+/* ===========================
+   FORECAST SECTION
+   =========================== */
+async function loadForecasts() {
+    try {
+        const res  = await fetch(API.adminForecasts, { credentials: 'include' });
+        const data = await res.json();
+        const items = data.items || [];
+        const fmt = v => v ? Number(v).toLocaleString() : '—';
+        document.getElementById('forecast-tbody').innerHTML = items.length
+            ? items.map(f => `<tr>
+                <td>${esc(f.email || '—')}</td>
+                <td>${f.target_date ? f.target_date.slice(0,10) : '—'}</td>
+                <td>฿${fmt(f.max_price)}</td>
+                <td>฿${fmt(f.min_price)}</td>
+                <td><span class="pill pill-blue">${esc(f.trend || '—')}</span></td>
+                <td class="text-sub">${f.created_at ? f.created_at.slice(0,10) : '—'}</td>
+              </tr>`).join('')
+            : '<tr><td colspan="6" class="text-center text-sub">ยังไม่มีการพยากรณ์</td></tr>';
+    } catch(e) {
+        document.getElementById('forecast-tbody').innerHTML =
+            `<tr><td colspan="6" class="text-center text-sub">Error: ${e.message}</td></tr>`;
+    }
+}
+
+/* ===========================
+   LOGS SECTION
+   =========================== */
+async function loadLogs() {
+    const terminal = document.getElementById('log-terminal');
+    terminal.innerHTML = '<span class="log-line text-sub">กำลังดึง logs...</span>';
+    try {
+        const res  = await fetch('/api/admin/logs', { credentials: 'include' });
+        const data = await res.json();
+        const lines = data.lines || [];
+        if (!lines.length) { terminal.innerHTML = '<span class="log-line text-sub">ไม่มี logs</span>'; return; }
+        terminal.innerHTML = lines.map(l => {
+            const isErr = /error|exception|fail/i.test(l);
+            return `<span class="log-line ${isErr ? 'log-err' : ''}">${esc(l)}</span>`;
+        }).join('');
+        terminal.scrollTop = terminal.scrollHeight;
+    } catch(e) {
+        terminal.innerHTML = `<span class="log-line log-err">Error loading logs: ${e.message}</span>`;
+    }
+    document.getElementById('btn-refresh-logs')?.addEventListener('click', loadLogs);
+}
+
+/* ===========================
+   SETTINGS / RUN JOB
+   =========================== */
+function setupSettings() {
+    const btn = document.getElementById('btn-run-job');
+    const status = document.getElementById('job-status');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+        status.textContent = '';
+        try {
+            const JOB_TOKEN = prompt('กรุณาใส่ JOB_TOKEN เพื่อรัน Job:', '');
+            if (!JOB_TOKEN) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Run Job Now'; return; }
+            const res  = await fetch(API.runJob, { method: 'POST', headers: {'Authorization': `Bearer ${JOB_TOKEN}`} });
+            const data = await res.json();
+            status.textContent = data.message || (data.ok ? 'Job สำเร็จ ✓' : 'Job ล้มเหลว');
+        } catch(e) {
+            status.textContent = 'Error: ' + e.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play"></i> Run Job Now';
+        }
+    });
+}
+
+/* ===========================
+   HELPER
+   =========================== */
+function esc(str) {
+    return String(str ?? '').replace(/[<>&"']/g, m =>
+        ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[m]));
+}
