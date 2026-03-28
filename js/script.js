@@ -1427,6 +1427,7 @@ async function fetchGoldNews() {
             const normalized = articles.map(a => ({
                 title:        a.title        || a.headline || '',
                 link:         a.url          || a.link     || '#',
+                urlToImage:   a.urlToImage   || '',
                 pubDate:      a.publishedAt  || a.pubDate  || '',
                 source:       a.source?.name || a.source   || '',
                 description:  a.description  || '',
