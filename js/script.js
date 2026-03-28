@@ -891,7 +891,8 @@ function renderNews(articles) {
         const dateStr = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
         const imgSrc = a.urlToImage || defaultImg;
         const sourceName = typeof a.source === 'string' ? a.source : (a.source?.name || '');
-        html += `<li class="news-item"><img class="news-image" src="${imgSrc}" alt="" onerror="this.src='${defaultImg}'"><div class="news-content"><a class="news-title" href="${a.url}" target="_blank" rel="noopener">${a.title || ''}</a><p class="news-description">${a.description || ''}</p><div class="news-footer"><span class="news-source">${sourceName}</span><span class="news-date">${dateStr}</span></div></div></li>`;
+        const targetUrl = a.url || a.link || '#';
+        html += `<li class="news-item"><img class="news-image" src="${imgSrc}" alt="" onerror="this.src='${defaultImg}'"><div class="news-content"><a class="news-title" href="${targetUrl}" target="_blank" rel="noopener">${a.title || ''}</a><p class="news-description">${a.description || ''}</p><div class="news-footer"><span class="news-source">${sourceName}</span><span class="news-date">${dateStr}</span></div></div></li>`;
     });
     html += '</ul>';
     box.innerHTML = html;
