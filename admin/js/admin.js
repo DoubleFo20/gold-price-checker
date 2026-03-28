@@ -9,10 +9,11 @@ const API = {
     adminUsers:   '/api/admin/users',
     adminForecasts: '/api/admin/forecasts',
     runJob:       '/api/jobs/run',
-    news:         '/api/news',
+    news:         '/api/api/proxy/news.php?q=gold',
 };
 
 let dashChart = null;
+let usersList = [];
 
 /* ===========================
    INIT
@@ -326,26 +327,134 @@ async function loadAlerts() {
 }
 
 /* ===========================
-   USERS SECTION
+   USERS SECTION (CRUD)
    =========================== */
 async function loadUsers() {
     try {
         const res  = await fetch(API.adminUsers, { credentials: 'include' });
         const data = await res.json();
-        const users = data.users || [];
-        document.getElementById('users-total-count').textContent = `ทั้งหมด: ${users.length}`;
-        document.getElementById('users-tbody').innerHTML = users.length
-            ? users.map(u => `<tr>
+        usersList  = data.users || [];
+        document.getElementById('users-total-count').textContent = `ทั้งหมด: ${usersList.length}`;
+        document.getElementById('users-tbody').innerHTML = usersList.length
+            ? usersList.map(u => `<tr>
                 <td>${esc(u.name || '—')}</td>
                 <td>${esc(u.email || '—')}</td>
                 <td><span class="pill ${u.role === 'admin' ? 'pill-gold' : 'pill-blue'}">${esc(u.role)}</span></td>
-                <td class="text-sub">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
                 <td>${u.is_active ? '<span class="pill pill-green">Active</span>' : '<span class="pill pill-red">Inactive</span>'}</td>
+                <td class="text-sub">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
+                <td>
+                    <button class="btn-xs btn-outline" style="color:var(--blue); border-color:var(--blue);" onclick="openUserModal(${u.id})"><i class="fas fa-edit"></i></button>
+                    <button class="btn-xs btn-outline" style="color:var(--red); border-color:var(--red);" onclick="deleteUser(${u.id}, '${esc(u.name)}')"><i class="fas fa-trash"></i></button>
+                </td>
               </tr>`).join('')
-            : '<tr><td colspan="5" class="text-center text-sub">ไม่มีผู้ใช้งาน</td></tr>';
+            : '<tr><td colspan="6" class="text-center text-sub">ไม่มีผู้ใช้งาน</td></tr>';
     } catch(e) {
         document.getElementById('users-tbody').innerHTML =
-            `<tr><td colspan="5" class="text-center text-sub">Error: ${e.message}</td></tr>`;
+            `<tr><td colspan="6" class="text-center text-sub">Error: ${e.message}</td></tr>`;
+    }
+}
+
+document.getElementById('btn-add-user')?.addEventListener('click', () => {
+    openUserModal();
+});
+
+function openUserModal(id = null) {
+    document.getElementById('um-error').textContent = '';
+    const isEdit = id !== null;
+    document.getElementById('userModalTitle').textContent = isEdit ? 'แก้ไขผู้ใช้งาน' : 'เพิ่มผู้ใช้งาน';
+    
+    // reset form
+    document.getElementById('um-id').value = id || '';
+    document.getElementById('um-name').value = '';
+    document.getElementById('um-email').value = '';
+    document.getElementById('um-password').value = '';
+    document.getElementById('um-role').value = 'user';
+    document.getElementById('um-status').value = '1';
+
+    // edit configuration
+    if (isEdit) {
+        const user = usersList.find(u => u.id === id);
+        if (user) {
+            document.getElementById('um-name').value = user.name || '';
+            document.getElementById('um-email').value = user.email || '';
+            document.getElementById('um-role').value = user.role || 'user';
+            document.getElementById('um-status').value = user.is_active ? '1' : '0';
+        }
+        document.getElementById('um-name-group').style.display = 'none';
+        document.getElementById('um-email-group').style.display = 'none';
+        document.getElementById('um-password-group').style.display = 'none';
+    } else {
+        document.getElementById('um-name-group').style.display = 'flex';
+        document.getElementById('um-email-group').style.display = 'flex';
+        document.getElementById('um-password-group').style.display = 'flex';
+    }
+
+    document.getElementById('userModal').classList.remove('hidden');
+}
+
+function closeUserModal() {
+    document.getElementById('userModal').classList.add('hidden');
+}
+
+document.getElementById('btn-save-user')?.addEventListener('click', async () => {
+    const id = document.getElementById('um-id').value;
+    const isEdit = id !== '';
+    const errEl = document.getElementById('um-error');
+    const btn = document.getElementById('btn-save-user');
+    
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+    const payload = isEdit 
+        ? { role: document.getElementById('um-role').value, is_active: parseInt(document.getElementById('um-status').value) }
+        : { 
+            name: document.getElementById('um-name').value, 
+            email: document.getElementById('um-email').value, 
+            password: document.getElementById('um-password').value, 
+            role: document.getElementById('um-role').value 
+        };
+
+    try {
+        const url = isEdit ? `${API.adminUsers}/${id}` : API.adminUsers;
+        const method = isEdit ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeUserModal();
+            loadUsers();
+            loadAdminStats(); // update count
+        } else {
+            errEl.textContent = data.message || 'เกิดข้อผิดพลาด';
+        }
+    } catch(e) {
+        errEl.textContent = 'Error: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'บันทึกข้อมูล';
+    }
+});
+
+async function deleteUser(id, name) {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ "${name}"?\nข้อมูลฟอเรคาสต์และการเตือนที่ผูกไว้จะถูกลบไปด้วย (หรือเป็นกำพร้า) การกระทำนี้ไม่สามารถยกเลิกได้!`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API.adminUsers}/${id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json();
+        if (data.success) {
+            loadUsers();
+            loadAdminStats(); // update count
+        } else {
+            alert(data.message || 'ไม่สามารถลบผู้ใช้ได้');
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
     }
 }
 

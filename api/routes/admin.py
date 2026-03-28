@@ -159,6 +159,89 @@ def admin_users():
         conn.close()
 
 
+@admin_bp.route("/api/admin/users", methods=["POST"])
+def admin_create_user():
+    conn = get_db_connection()
+    try:
+        user, err = _require_admin(conn)
+        if err: return err
+
+        data = request.json
+        name = data.get("name", "").strip()
+        email = data.get("email", "").strip()
+        password = data.get("password", "").strip()
+        role = data.get("role", "user")
+
+        if not name or not email or not password:
+            return jsonify(success=False, message="กรุณากรอกข้อมูลให้ครบถ้วน"), 400
+
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cursor.fetchone():
+                return jsonify(success=False, message="Email นี้มีในระบบแล้ว"), 400
+
+            import bcrypt
+            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            cursor.execute(
+                "INSERT INTO users (name, email, password_hash, role, is_active) VALUES (%s, %s, %s, %s, 1)",
+                (name, email, hashed, role)
+            )
+            conn.commit()
+        return jsonify(success=True, message="สร้างผู้ใช้สำเร็จ")
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(success=False, message=str(e)), 500
+    finally:
+        conn.close()
+
+
+@admin_bp.route("/api/admin/users/<int:user_id>", methods=["PUT", "DELETE"])
+def admin_manage_user(user_id):
+    conn = get_db_connection()
+    try:
+        user, err = _require_admin(conn)
+        if err: return err
+
+        if user_id == user.get("id"):
+            return jsonify(success=False, message="ไม่สามารถแก้ไข/ลบตัวเองได้"), 400
+
+        if request.method == "DELETE":
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+                conn.commit()
+            return jsonify(success=True, message="ลบผู้ใช้เรียบร้อย")
+
+        elif request.method == "PUT":
+            data = request.json
+            role = data.get("role")
+            is_active = data.get("is_active")
+            
+            updates = []
+            params = []
+            if role in ["user", "admin"]:
+                updates.append("role = %s")
+                params.append(role)
+            if is_active is not None:
+                updates.append("is_active = %s")
+                params.append(int(bool(is_active)))
+
+            if not updates:
+                return jsonify(success=False, message="ไม่มีข้อมูลให้อัปเดต"), 400
+
+            params.append(user_id)
+            query = f"UPDATE users SET {', '.join(updates)} WHERE id = %s"
+            with conn.cursor() as cursor:
+                cursor.execute(query, tuple(params))
+                conn.commit()
+            return jsonify(success=True, message="อัปเดตผู้ใช้เรียบร้อย")
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(success=False, message=str(e)), 500
+    finally:
+        conn.close()
+
+
 # ── Saved Forecasts ───────────────────────────────────────────────────────────
 @admin_bp.route("/api/admin/forecasts", methods=["GET"])
 def admin_forecasts():
