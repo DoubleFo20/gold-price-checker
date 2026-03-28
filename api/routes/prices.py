@@ -203,11 +203,33 @@ def api_news():
     from utils.config import CONFIG
     import requests
     import urllib.parse
+    from datetime import datetime
     
     api_key = CONFIG.get("NEWSAPI_KEY", "")
     query = urllib.parse.quote(request.args.get("q", "gold"))
+    
     if not api_key:
-        return jsonify({"status": "error", "message": "API Key is missing in configuration."}), 500
+        # Fallback to Mock Data if API Key is not set in environment
+        mock_news = {
+            "status": "ok",
+            "articles": [
+                {
+                    "title": "[Demo] ราคาทองวันนี้แนวโน้มผันผวน",
+                    "description": "ยังไม่ได้ใส่ NEWSAPI_KEY ในการตั้งค่า Environment ของระบบ (นี่คือข้อมูลจำลอง)",
+                    "url": "#",
+                    "source": {"name": "System DEMO"},
+                    "publishedAt": datetime.now().isoformat()
+                },
+                {
+                    "title": "[Demo] เฟดส่งสัญญาณคงดอกเบี้ย",
+                    "description": "กรุณาใส่ NEWSAPI_KEY เพื่อดึงข่าวจริงจากแหล่งเชื่อถือได้",
+                    "url": "#",
+                    "source": {"name": "System DEMO"},
+                    "publishedAt": datetime.now().isoformat()
+                }
+            ]
+        }
+        return jsonify(mock_news), 200
 
     url = f"https://newsapi.org/v2/everything?q={query}&pageSize=10&language=en&sortBy=publishedAt&apiKey={api_key}"
     headers = {"User-Agent": "GoldPriceChecker/1.0"}
