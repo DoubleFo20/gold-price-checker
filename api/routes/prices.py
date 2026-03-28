@@ -227,8 +227,19 @@ def api_news():
         
         import re
         
+        # รูปภาพสุ่มสำหรับข่าวทองคำเนื่องจาก Google RSS ไม่มีรูปมาให้
+        fallback_images = [
+            "https://images.unsplash.com/photo-1610375461246-83df859d849d?w=600&q=80",
+            "https://images.unsplash.com/photo-1599387819932-b883088b9dd6?w=600&q=80",
+            "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&q=80",
+            "https://images.unsplash.com/photo-1610375461320-b420f1ec3795?w=600&q=80",
+            "https://images.unsplash.com/photo-1610052204791-c67299a9a5f7?w=600&q=80",
+            "https://images.unsplash.com/photo-1633158829585-23ba8f7c8caf?w=600&q=80",
+            "https://images.unsplash.com/photo-1579621970588-a35d0e7ab9b6?w=600&q=80",
+        ]
+        
         # 3. แปลง XML เป็นโครงสร้างเดียวกับที่ frontend (NewsAPI format) รองรับ
-        for item in root.findall('.//item')[:10]:  # ดึงมา 10 ข่าวล่าสุด
+        for i, item in enumerate(root.findall('.//item')[:10]):  # ดึงมา 10 ข่าวล่าสุด
             title = item.find('title')
             link = item.find('link')
             pub_date = item.find('pubDate')
@@ -254,6 +265,7 @@ def api_news():
             articles.append({
                 "title": title_text,
                 "url": url_text,
+                "urlToImage": fallback_images[i % len(fallback_images)],
                 "publishedAt": (pub_date.text or datetime.now().isoformat()).strip(),
                 "source": {
                     "name": (source.text or "Google News").strip()
