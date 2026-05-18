@@ -1,60 +1,17 @@
 # ===================== server.py =====================
 # Entry point for Gunicorn: gunicorn api.server:app
-# NOTHING runs at import time except registering blueprints.
-# Background jobs are ONLY started in if __name__ == "__main__".
+# Minimal server that imports the application factory.
 
 import os
-from flask import Flask, request
+from app.create_app import create_app
 
-# Load .env before anything else
-from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+# Create Flask app via factory
+app = create_app()
 
-# CORS helpers (no side-effects — just reads env vars)
-from utils.config import ALLOWED_ORIGINS, _origin_allowed
-
-# ---------------------------------------------------------------------------
-# App factory
-# ---------------------------------------------------------------------------
-app = Flask(__name__)
-
-
-@app.after_request
-def after_request(response):
-    origin = request.headers.get("Origin", "")
-    if _origin_allowed(origin):
-        response.headers["Access-Control-Allow-Origin"] = origin.rstrip("/")
-        response.headers["Vary"] = "Origin"
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-    response.headers.add("Access-Control-Allow-Credentials", "true")
-    return response
-
-
-# ---------------------------------------------------------------------------
-# Register Blueprints (import inside function scope — no top-level side-effects)
-# ---------------------------------------------------------------------------
-from routes.main import main_bp
-from routes.prices import prices_bp
-from routes.forecast import forecast_bp
-from routes.auth_routes import auth_bp
-from routes.alerts import alerts_bp
-from routes.user_routes import user_bp
-from routes.webhook import webhook_bp
-from routes.jobs import jobs_bp
-from routes.admin import admin_bp
-
-for bp in (main_bp, prices_bp, forecast_bp, auth_bp, alerts_bp, user_bp, webhook_bp, jobs_bp, admin_bp):
-    app.register_blueprint(bp)
-
-# ---------------------------------------------------------------------------
-# Gunicorn alias — MUST be at module level
-# ---------------------------------------------------------------------------
+# Gunicorn alias – must be at module level
 application = app
 
-# ---------------------------------------------------------------------------
-# Dev server entry point — background thread ONLY runs here
-# ---------------------------------------------------------------------------
+# Dev server entry point – background thread ONLY runs here
 if __name__ == "__main__":
     import threading
     from scheduler.jobs import unified_background_alert_checker

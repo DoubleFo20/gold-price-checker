@@ -70,3 +70,13 @@ def _bcrypt_hash(password: str) -> str:
     if not HAVE_BCRYPT:
         raise RuntimeError("bcrypt is required for password hashing")
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+def usd_oz_to_thb_per_baht(usd_price, usd_thb):
+    """
+    Convert world gold USD/oz price to Thai Baht per baht-weight.
+    """
+    try:
+        return round((usd_price * usd_thb * 0.4901) / 15.244, 2)
+    except Exception:
+        return 0
