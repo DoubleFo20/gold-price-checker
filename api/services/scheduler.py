@@ -13,7 +13,7 @@ from services.line_service import _line_push
 def save_daily_price():
     """Save today's Thai gold price to price_cache table (runs once per day)."""
     try:
-        from services.gold_price import thai_cache, world_cache
+
         thai_data = thai_cache.get("data")
         world_data = world_cache.get("data")
         if not thai_data or not thai_data.get("bar_sell"):
@@ -58,11 +58,11 @@ def save_daily_price():
                         ),
                     )
             conn.commit()
-            print(f"✅ Saved daily price: {today} bar_sell={thai_data.get('bar_sell')}")
+            print(f"Saved daily price: {today} bar_sell={thai_data.get('bar_sell')}")
         finally:
             conn.close()
     except Exception as e:
-        print(f"⚠️ Failed to save daily price: {e}")
+        print(f"Failed to save daily price: {e}")
 
 
 def run_scheduled_jobs_once():

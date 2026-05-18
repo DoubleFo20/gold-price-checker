@@ -1,5 +1,5 @@
 """services/historical.py — Historical and intraday gold data builders."""
-import time
+
 import random
 import math
 from datetime import datetime, timedelta
@@ -37,12 +37,12 @@ def build_series_from_db(days=365):
                 return None, None
             labels = [r["date"].strftime("%Y-%m-%d") if hasattr(r["date"], "strftime") else str(r["date"]) for r in rows]
             values = [float(r["bar_sell"]) for r in rows]
-            print(f"✅ Loaded {len(rows)} days of REAL Thai gold data from price_cache")
+            print(f"Loaded {len(rows)} days of REAL Thai gold data from price_cache")
             return labels, values
         finally:
             conn.close()
     except Exception as e:
-        print(f"⚠️ Failed to load from price_cache: {e}")
+        print(f"Failed to load from price_cache: {e}")
         return None, None
 
 

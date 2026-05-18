@@ -24,6 +24,13 @@ def create_app() -> Flask:
         Flask: Configured Flask app instance.
     """
     app = Flask(__name__)
+    
+    # Load configuration
+    env = os.getenv("FLASK_ENV", "development").lower()
+    if env == "production":
+        app.config.from_object("config.production.ProductionConfig")
+    else:
+        app.config.from_object("config.development.DevelopmentConfig")
 
     @app.after_request
     def after_request(response):
