@@ -19,11 +19,6 @@ def get_db_connection():
     database = os.getenv("DB_NAME")
     port = int(os.getenv("DB_PORT", 3306))
 
-    print("DB_HOST:", host)
-    print("DB_USER:", user)
-    print("DB_NAME:", database)
-    print("DB_PORT:", port)
-
     return pymysql.connect(
         host=host,
         user=user,

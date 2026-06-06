@@ -17,7 +17,7 @@ return [
         'host' => getenv('DB_HOST') ?: 'localhost',
         'name' => getenv('DB_NAME') ?: 'goldapidb',
         'user' => getenv('DB_USER') ?: 'root',
-        'pass' => getenv('DB_PASS') ?: ''
+        'pass' => getenv('DB_PASSWORD') ?: ''
     ],
     'cookie' => [
         'secure' => getenv('COOKIE_SECURE') === 'true'

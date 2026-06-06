@@ -23,8 +23,11 @@ if (php_sapi_name() !== 'cli') {
     if (in_array($origin, $allowed_origins) || empty($origin)) {
         header("Access-Control-Allow-Origin: " . ($origin ?: '*'));
     } else {
-        // ในกรณี Production จริง ควรใส่โดเมนหลักของเว็บที่นี่แทน *
-        header("Access-Control-Allow-Origin: " . $origin); 
+        // ปฏิเสธ origin ที่ไม่ได้รับอนุญาต — ไม่สะท้อน origin กลับ
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'Origin not allowed']);
+        exit;
     }
     
     header("Access-Control-Allow-Credentials: true");
