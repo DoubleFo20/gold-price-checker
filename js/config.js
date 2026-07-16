@@ -26,11 +26,11 @@ let _pythonApiUrl = (_isLocalhost || _forceLocalApi)
       isPlaceholderApiUrl(_explicitApiUrl) ? window.location.origin : _explicitApiUrl
     );
 
-// Auto-detect Render separate frontend/backend deployments
+// Explicit backend URL for Render deployment
+// Frontend: gold-price-checker.onrender.com
+// Backend:  gold-price-checker-api.onrender.com
 if (!_isLocalhost && !_forceLocalApi && isPlaceholderApiUrl(_explicitApiUrl)) {
-    if (window.location.hostname.endsWith('.onrender.com') && !window.location.hostname.endsWith('-api.onrender.com')) {
-        _pythonApiUrl = `https://${window.location.hostname.replace('.onrender.com', '-api.onrender.com')}`;
-    }
+    _pythonApiUrl = 'https://gold-price-checker-api.onrender.com';
 }
 
 const _phpApiBase = (_isLocalhost && !_forceLocalApi)

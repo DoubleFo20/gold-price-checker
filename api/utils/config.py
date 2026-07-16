@@ -62,4 +62,11 @@ def _origin_allowed(origin: str) -> bool:
         parsed = urlparse(normalized)
     except Exception:
         return False
-    return parsed.hostname in {"localhost", "127.0.0.1"}
+    hostname = parsed.hostname or ""
+    # Allow localhost for development
+    if hostname in {"localhost", "127.0.0.1"}:
+        return True
+    # Allow any Render subdomain automatically (*.onrender.com)
+    if hostname.endswith(".onrender.com"):
+        return True
+    return False
