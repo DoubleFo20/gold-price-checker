@@ -20,11 +20,18 @@ const _explicitApiUrl =
 
 const _localPythonApiUrl = normalizeBaseUrl(window.__APP_LOCAL_API_URL__ || 'http://127.0.0.1:5000');
 
-const _pythonApiUrl = (_isLocalhost || _forceLocalApi)
+let _pythonApiUrl = (_isLocalhost || _forceLocalApi)
   ? _localPythonApiUrl
   : normalizeBaseUrl(
       isPlaceholderApiUrl(_explicitApiUrl) ? window.location.origin : _explicitApiUrl
     );
+
+// Auto-detect Render separate frontend/backend deployments
+if (!_isLocalhost && !_forceLocalApi && isPlaceholderApiUrl(_explicitApiUrl)) {
+    if (window.location.hostname.endsWith('.onrender.com') && !window.location.hostname.endsWith('-api.onrender.com')) {
+        _pythonApiUrl = `https://${window.location.hostname.replace('.onrender.com', '-api.onrender.com')}`;
+    }
+}
 
 const _phpApiBase = (_isLocalhost && !_forceLocalApi)
   ? 'api/api'
