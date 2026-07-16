@@ -13,6 +13,26 @@ from utils.helpers import _cookie_secure, _bcrypt_verify, _bcrypt_hash
 auth_bp = Blueprint("auth", __name__)
 
 
+# ---------------------------------------------------------------------------
+# Debug endpoint — test DB connectivity
+# ---------------------------------------------------------------------------
+@auth_bp.route("/api/debug/db", methods=["GET"])
+def debug_db():
+    """Quick endpoint to test if the database is reachable."""
+    try:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 AS ok")
+                row = cursor.fetchone()
+            return jsonify(success=True, db_ok=True, result=row), 200
+        finally:
+            conn.close()
+    except Exception as exc:
+        traceback.print_exc()
+        return jsonify(success=False, db_ok=False, error=str(exc)), 500
+
+
 @auth_bp.route("/api/api/auth/login.php", methods=["POST", "OPTIONS"])
 def php_compat_login():
     if request.method == "OPTIONS":
@@ -22,8 +42,9 @@ def php_compat_login():
     password = data.get("password") or ""
     if not email or not password:
         return jsonify(success=False, message="กรุณากรอกอีเมลและรหัสผ่าน"), 400
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM users WHERE email=%s AND is_active=1 LIMIT 1", (email,))
             user = cursor.fetchone()
@@ -43,11 +64,12 @@ def php_compat_login():
         resp = jsonify(success=True, message="เข้าสู่ระบบสำเร็จ!", user={k: v for k, v in user.items() if k != "password_hash"})
         resp.set_cookie("session_token", token, expires=expires_ts, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
         return resp, 200
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify(success=False, message="Server error while processing login."), 500
+        return jsonify(success=False, message=f"ไม่สามารถเชื่อมต่อฐานข้อมูลได้: {str(exc)}"), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @auth_bp.route("/api/api/auth/register.php", methods=["POST", "OPTIONS"])
@@ -60,8 +82,9 @@ def php_compat_register():
     name = (data.get("name") or "").strip()
     if (not email) or ("@" not in email) or (not name) or (not password) or (len(password) < 6):
         return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง กรุณากรอกข้อมูลให้ครบถ้วน"), 400
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         with conn.cursor() as cursor:
             cursor.execute("SELECT id FROM users WHERE email=%s LIMIT 1", (email,))
             if cursor.fetchone():
@@ -73,11 +96,12 @@ def php_compat_register():
             )
         conn.commit()
         return jsonify(success=True, message="สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ"), 201
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify(success=False, message="เกิดข้อผิดพลาดในการสมัครสมาชิก"), 500
+        return jsonify(success=False, message=f"เกิดข้อผิดพลาดในการสมัครสมาชิก: {str(exc)}"), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @auth_bp.route("/api/api/auth/check_session.php", methods=["POST", "OPTIONS"])
@@ -85,19 +109,21 @@ def php_compat_check_session():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
     token = request.cookies.get("session_token") or ""
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         user = _auth_get_user_by_session(conn, token)
         if user:
             return jsonify(success=True, authenticated=True, user={k: v for k, v in user.items() if k != "password_hash"}), 200
         resp = jsonify(success=True, authenticated=False)
         resp.set_cookie("session_token", "", expires=0, path="/")
         return resp, 200
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify(success=False, authenticated=False, message="Server error during session check"), 500
+        return jsonify(success=False, authenticated=False, message=f"DB error: {str(exc)}"), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @auth_bp.route("/api/api/auth/update_profile.php", methods=["POST", "OPTIONS"])
@@ -108,8 +134,9 @@ def php_compat_update_profile():
     name = (data.get("name") or "").strip()
     if len(name) < 2:
         return jsonify(success=False, message="ชื่อไม่ถูกต้อง"), 400
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         user, err = _require_auth_user(conn)
         if err:
             return err
@@ -119,11 +146,12 @@ def php_compat_update_profile():
             conn.commit()
         _retry_after_users_column_fix(conn, ("name",), _save_name)
         return jsonify(success=True, message="อัปเดตโปรไฟล์สำเร็จ", user={"id": user["id"], "name": name, "email": user.get("email")}), 200
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify(success=False, message="ไม่สามารถบันทึกชื่อได้"), 500
+        return jsonify(success=False, message=f"ไม่สามารถบันทึกชื่อได้: {str(exc)}"), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @auth_bp.route("/api/api/auth/change_password.php", methods=["POST", "OPTIONS"])
@@ -135,8 +163,9 @@ def php_compat_change_password():
     new_password = data.get("new_password") or ""
     if (not old_password) or len(new_password) < 6:
         return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         user, err = _require_auth_user(conn)
         if err:
             return err
@@ -150,11 +179,12 @@ def php_compat_change_password():
             cursor.execute("UPDATE users SET password_hash=%s WHERE id=%s", (new_hash, user["id"]))
         conn.commit()
         return jsonify(success=True, message="เปลี่ยนรหัสผ่านสำเร็จ"), 200
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify(success=False, message="ไม่สามารถเปลี่ยนรหัสผ่านได้"), 500
+        return jsonify(success=False, message=f"ไม่สามารถเปลี่ยนรหัสผ่านได้: {str(exc)}"), 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 @auth_bp.route("/api/api/auth/logout.php", methods=["POST", "OPTIONS"])
@@ -162,8 +192,9 @@ def php_compat_logout():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
     token = request.cookies.get("session_token") or ""
-    conn = get_db_connection()
+    conn = None
     try:
+        conn = get_db_connection()
         if token:
             with conn.cursor() as cursor:
                 cursor.execute("DELETE FROM sessions WHERE token=%s", (token,))
@@ -171,10 +202,11 @@ def php_compat_logout():
         resp = jsonify(success=True, message="Logged out")
         resp.set_cookie("session_token", "", expires=0, path="/")
         return resp, 200
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        resp = jsonify(success=False, message="Logout failed")
+        resp = jsonify(success=False, message=f"Logout failed: {str(exc)}")
         resp.set_cookie("session_token", "", expires=0, path="/")
         return resp, 500
     finally:
-        conn.close()
+        if conn:
+            conn.close()
