@@ -26,12 +26,8 @@ let _pythonApiUrl = (_isLocalhost || _forceLocalApi)
       isPlaceholderApiUrl(_explicitApiUrl) ? window.location.origin : _explicitApiUrl
     );
 
-// Explicit backend URL for Render deployment
-// Frontend: gold-price-checker.onrender.com
-// Backend:  gold-price-checker-api.onrender.com
-if (!_isLocalhost && !_forceLocalApi && isPlaceholderApiUrl(_explicitApiUrl)) {
-    _pythonApiUrl = 'https://gold-price-checker-api.onrender.com';
-}
+// Single Render service: frontend + backend share the same origin.
+// No override needed — window.location.origin is already correct.
 
 const _phpApiBase = (_isLocalhost && !_forceLocalApi)
   ? 'api/api'
