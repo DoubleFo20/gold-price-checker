@@ -163,5 +163,34 @@ class DeploymentSchemaTests(unittest.TestCase):
         self.assertIn("IS_VERIFIED", normalized)
 
 
+class DatabaseConnectionTests(unittest.TestCase):
+    def test_aiven_ca_enables_verified_tls(self):
+        from database.connection import get_db_connection
+
+        environment = {
+            "DB_HOST": "mysql.example.test",
+            "DB_PORT": "11838",
+            "DB_NAME": "defaultdb",
+            "DB_USER": "avnadmin",
+            "DB_PASSWORD": "test-password",
+            "DB_SSL_CA": "/etc/secrets/aiven-ca.pem",
+        }
+        with (
+            patch.dict(os.environ, environment, clear=False),
+            patch("database.connection.pymysql.connect") as connect,
+        ):
+            get_db_connection()
+
+        connect.assert_called_once_with(
+            host="mysql.example.test",
+            user="avnadmin",
+            password="test-password",
+            database="defaultdb",
+            port=11838,
+            cursorclass=connect.call_args.kwargs["cursorclass"],
+            ssl={"ca": "/etc/secrets/aiven-ca.pem", "check_hostname": True},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

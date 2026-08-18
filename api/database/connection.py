@@ -19,6 +19,11 @@ def get_db_connection():
     database = os.getenv("DB_NAME")
     port = int(os.getenv("DB_PORT", 3306))
 
+    connect_options = {}
+    ssl_ca = (os.getenv("DB_SSL_CA") or "").strip()
+    if ssl_ca:
+        connect_options["ssl"] = {"ca": ssl_ca, "check_hostname": True}
+
     return pymysql.connect(
         host=host,
         user=user,
@@ -26,6 +31,7 @@ def get_db_connection():
         database=database,
         port=port,
         cursorclass=pymysql.cursors.DictCursor,
+        **connect_options,
     )
 
 
