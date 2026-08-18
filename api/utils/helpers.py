@@ -52,6 +52,15 @@ def _cookie_secure() -> bool:
     return bool(_req.is_secure)
 
 
+def _client_ip(request, max_length: int = 45) -> str:
+    """Return one database-safe client IP from a proxy forwarding chain."""
+    # Render may send multiple comma-separated addresses in X-Forwarded-For;
+    # sessions.ip_address stores one IPv4/IPv6 address in a VARCHAR(45).
+    forwarded_for = (request.headers.get("X-Forwarded-For") or "").strip()
+    address = forwarded_for.split(",", 1)[0].strip() if forwarded_for else ""
+    return (address or request.remote_addr or "")[:max_length]
+
+
 def _bcrypt_verify(password: str, password_hash: str) -> bool:
     if not HAVE_BCRYPT:
         raise RuntimeError("bcrypt is required for password verification")

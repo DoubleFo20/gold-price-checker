@@ -8,7 +8,7 @@ from flask import Blueprint, abort, current_app, jsonify, request
 
 from database.connection import get_db_connection, _retry_after_users_column_fix
 from services.auth import _auth_get_user_by_session, _require_auth_user
-from utils.helpers import _cookie_secure, _bcrypt_verify, _bcrypt_hash
+from utils.helpers import _client_ip, _cookie_secure, _bcrypt_verify, _bcrypt_hash
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -59,7 +59,7 @@ def php_compat_login():
             cursor.execute(
                 "INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent) VALUES (%s, %s, %s, %s, %s)",
                 (user["id"], token, expires_at_db,
-                 request.headers.get("X-Forwarded-For", request.remote_addr),
+                 _client_ip(request),
                  request.headers.get("User-Agent", "")[:1000]),
             )
         conn.commit()

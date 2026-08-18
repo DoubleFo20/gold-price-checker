@@ -192,5 +192,18 @@ class DatabaseConnectionTests(unittest.TestCase):
         )
 
 
+class ClientIpTests(unittest.TestCase):
+    def test_forwarded_chain_uses_first_database_safe_address(self):
+        from utils.helpers import _client_ip
+
+        class Request:
+            headers = {
+                "X-Forwarded-For": "2001:db8::1, 198.51.100.20, 10.0.0.1",
+            }
+            remote_addr = "127.0.0.1"
+
+        self.assertEqual(_client_ip(Request()), "2001:db8::1")
+
+
 if __name__ == "__main__":
     unittest.main()
