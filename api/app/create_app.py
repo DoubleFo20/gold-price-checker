@@ -26,7 +26,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
     
     # Load configuration
-    env = os.getenv("FLASK_ENV", "development").lower()
+    env = (os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development").lower()
     if env == "production":
         app.config.from_object("config.production.ProductionConfig")
     else:

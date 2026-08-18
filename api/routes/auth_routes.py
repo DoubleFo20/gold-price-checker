@@ -4,7 +4,7 @@ import time
 import traceback
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 
 from database.connection import get_db_connection, _retry_after_users_column_fix
 from services.auth import _auth_get_user_by_session, _require_auth_user
@@ -19,6 +19,8 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/api/debug/db", methods=["GET"])
 def debug_db():
     """Quick endpoint to test if the database is reachable."""
+    if current_app.config.get("ENV") == "production":
+        abort(404)
     try:
         conn = get_db_connection()
         try:

@@ -112,7 +112,7 @@ def _line_get_cached_prices_text(price_mode: str = "all"):
 def _line_signature_ok(body: bytes, signature: str) -> bool:
     secret = os.getenv("LINE_CHANNEL_SECRET", "")
     if not secret or not signature:
-        return True
+        return False
     mac = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).digest()
     expected = base64.b64encode(mac).decode("utf-8")
     return hmac.compare_digest(expected, signature)

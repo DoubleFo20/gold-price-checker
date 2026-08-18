@@ -116,17 +116,20 @@ def _deliver_price_alert(conn, alert, current_price, stats=None):
         if stats is not None and delivery["line_sent"]:
             stats["line_sent"] = stats.get("line_sent", 0) + 1
 
-    if not delivery["line_sent"] and alert.get("push_subscription"):
+    if alert.get("push_subscription"):
         delivery["push_sent"] = _send_web_push(
             alert.get("push_subscription"), message["title"], message["body"], url="#alerts-container",
         )
         if stats is not None and delivery["push_sent"]:
             stats["push_sent"] = stats.get("push_sent", 0) + 1
 
-    if not delivery["line_sent"] and not delivery["push_sent"]:
+    if alert.get("receiver_email") or alert.get("notify_email") or alert.get("email"):
         delivery["email_sent"] = send_alert_email_smtp(alert, current_price)
         if stats is not None and delivery["email_sent"]:
             stats["email_sent"] = stats.get("email_sent", 0) + 1
 
-    delivery["notified"] = delivery["line_sent"] or delivery["push_sent"] or delivery["email_sent"]
+    delivery["notified"] = any((
+        delivery["line_sent"], delivery["push_sent"],
+        delivery["email_sent"], delivery["in_app_saved"],
+    ))
     return delivery

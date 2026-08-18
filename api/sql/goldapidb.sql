@@ -1,20 +1,14 @@
 /* =========================================================
    Gold Trading API - Production Schema
-   DB: gold_tracker_db
-   Charset/Collation: utf8mb4 / utf8mb4_unicode_ci
+   Import this file into the target database selected by the
+   hosting provider. It intentionally creates no database and
+   contains no seeded users or credentials.
    ========================================================= */
 
 -- ปลอดภัยไว้ก่อน
 SET NAMES utf8mb4;
 SET time_zone = '+07:00';
 SET FOREIGN_KEY_CHECKS = 0;   -- ปิดชั่วคราวกัน FK error ระหว่างสร้าง
-
--- DB
-CREATE DATABASE IF NOT EXISTS goldapidb
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE goldapidb;
 
 /* =========================================================
    USERS
@@ -24,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   email           VARCHAR(255) NOT NULL,
   password_hash   VARCHAR(255) NOT NULL,
   name            VARCHAR(100),
-  email_verified  TINYINT(1) NOT NULL DEFAULT 0,
+  is_verified     TINYINT(1) NOT NULL DEFAULT 0,
   verification_token VARCHAR(100) NULL,
   role            ENUM('user','admin') NOT NULL DEFAULT 'user',
   last_login      DATETIME NULL,
@@ -117,6 +111,32 @@ CREATE TABLE IF NOT EXISTS calculation_history (
   KEY idx_calc_unit (unit),
 
   CONSTRAINT fk_calc_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* =========================================================
+   SAVED FORECASTS
+   ========================================================= */
+CREATE TABLE IF NOT EXISTS saved_forecasts (
+  id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id          INT UNSIGNED NOT NULL,
+  forecast_date    DATE NOT NULL,
+  target_date      DATE NOT NULL,
+  trend            VARCHAR(50) NOT NULL,
+  max_price        DECIMAL(10,2) NOT NULL,
+  min_price        DECIMAL(10,2) NOT NULL,
+  confidence       DECIMAL(5,2) NOT NULL,
+  hist_days        INT NOT NULL,
+  actual_max_price DECIMAL(10,2) NULL,
+  actual_min_price DECIMAL(10,2) NULL,
+  verified_at      TIMESTAMP NULL,
+  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  KEY idx_forecasts_user_created (user_id, created_at),
+  KEY idx_forecasts_due (verified_at, target_date),
+
+  CONSTRAINT fk_forecasts_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -235,15 +255,6 @@ CREATE TABLE IF NOT EXISTS cron_job_runs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /* =========================================================
-   DEMO USER (รหัสผ่าน: demo123456)
-   ========================================================= */
-INSERT INTO users (email, password_hash, name, is_verified)
-VALUES ('demo@goldprice.com',
-        '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-        'Demo User', 1)
-ON DUPLICATE KEY UPDATE email = email; -- กันซ้ำเฉยๆ
-
-/* =========================================================
    ACTIVITY LOGS (ใช้โดย logActivity() ใน database.php)
    ========================================================= */
 CREATE TABLE IF NOT EXISTS activity_logs (
@@ -283,12 +294,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET FOREIGN_KEY_CHECKS = 1;   -- เปิดกลับ
-
 -- Email verifications (สำหรับยืนยันอีเมล)
 CREATE TABLE IF NOT EXISTS email_verifications (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id INT NOT NULL,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
   token VARCHAR(255) UNIQUE NOT NULL,
   expires_at DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -298,11 +307,13 @@ CREATE TABLE IF NOT EXISTS email_verifications (
 
 -- Password reset tokens
 CREATE TABLE IF NOT EXISTS password_resets (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  user_id INT NOT NULL,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  user_id INT UNSIGNED NOT NULL,
   token VARCHAR(255) UNIQUE NOT NULL,
   expires_at DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_user_expires (user_id, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET FOREIGN_KEY_CHECKS = 1;
