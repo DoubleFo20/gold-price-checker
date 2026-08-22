@@ -8,6 +8,13 @@ from services.gold_price import refresh_thai_cache, refresh_world_cache, thai_ca
 from services.notification import _deliver_price_alert
 from services.email_service import send_forecast_result_email_smtp
 from services.line_service import _line_push
+from services.forecast_service import (
+    ForecastUnavailableError,
+    create_canonical_predictions,
+    verify_canonical_predictions,
+)
+from services.forecast_data import OFFICIAL_SOURCE
+from services.bot_exchange import fetch_daily_rate
 
 
 def save_daily_price():
@@ -18,17 +25,32 @@ def save_daily_price():
         world_data = world_cache.get("data")
         if not thai_data or not thai_data.get("bar_sell"):
             return
+        source_note = str(thai_data.get("source_note") or "Unknown").strip()
+        is_official = source_note.upper().startswith("GTA") or "GOLD TRADERS ASSOCIATION" in source_note.upper()
+        stored_source = OFFICIAL_SOURCE if is_official else source_note[:100]
+        quality_status = "verified" if is_official else "unverified"
         today = datetime.now().date()
+        # BOT is audit metadata only in model v1. Missing credentials/data must not
+        # be replaced by a guessed exchange rate or block the gold-price refresh.
+        try:
+            usd_thb = fetch_daily_rate(today)
+        except Exception as exc:
+            usd_thb = None
+            print(f"BOT reference rate unavailable: {type(exc).__name__}")
         conn = get_db_connection()
         try:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT id FROM price_cache WHERE date=%s", (today,))
-                if cursor.fetchone():
+                cursor.execute("SELECT id, quality_status FROM price_cache WHERE date=%s", (today,))
+                existing = cursor.fetchone()
+                if existing and existing.get("quality_status") == "verified" and not is_official:
+                    return
+                if existing:
                     cursor.execute(
                         """
                         UPDATE price_cache SET
                             bar_buy=%s, bar_sell=%s, ornament_buy=%s, ornament_sell=%s,
-                            world_usd=%s, world_thb=%s
+                            world_usd=%s, world_thb=%s, usd_thb=COALESCE(%s, usd_thb), source=%s,
+                            source_timestamp=NOW(), quality_status=%s
                         WHERE date=%s
                         """,
                         (
@@ -38,14 +60,20 @@ def save_daily_price():
                             to_float(thai_data.get("ornament_sell")),
                             to_float(world_data.get("price_usd_per_ounce")) if world_data else None,
                             to_float(world_data.get("thb_per_baht_est")) if world_data else None,
+                            usd_thb,
+                            stored_source,
+                            quality_status,
                             today,
                         ),
                     )
                 else:
                     cursor.execute(
                         """
-                        INSERT INTO price_cache (date, bar_buy, bar_sell, ornament_buy, ornament_sell, world_usd, world_thb)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO price_cache (
+                            date, bar_buy, bar_sell, ornament_buy, ornament_sell,
+                            world_usd, world_thb, usd_thb, source, source_timestamp, quality_status
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
                         """,
                         (
                             today,
@@ -55,6 +83,9 @@ def save_daily_price():
                             to_float(thai_data.get("ornament_sell")),
                             to_float(world_data.get("price_usd_per_ounce")) if world_data else None,
                             to_float(world_data.get("thb_per_baht_est")) if world_data else None,
+                            usd_thb,
+                            stored_source,
+                            quality_status,
                         ),
                     )
             conn.commit()
@@ -70,6 +101,8 @@ def run_scheduled_jobs_once():
         "ok": True, "errors": [], "checked_alerts": 0, "triggered_alerts": 0,
         "verified_forecasts": 0, "line_sent": 0, "push_sent": 0,
         "email_sent": 0, "notifications_saved": 0,
+        "canonical_predictions": 0, "predictions_verified": 0,
+        "forecast_ready": False,
     }
 
     try:
@@ -90,6 +123,18 @@ def run_scheduled_jobs_once():
     except Exception as e:
         stats["ok"] = False
         stats["errors"].append(f"save_daily_price_failed: {e}")
+
+    try:
+        stats["predictions_verified"] = verify_canonical_predictions()
+        canonical = create_canonical_predictions()
+        stats["canonical_predictions"] = canonical["created"]
+        stats["forecast_ready"] = True
+    except ForecastUnavailableError:
+        # Expected until the approved migration/import/backtest gate is complete.
+        stats["forecast_ready"] = False
+    except Exception as e:
+        stats["forecast_ready"] = False
+        stats["errors"].append(f"forecast_pipeline_failed: {type(e).__name__}")
 
     current_prices = {
         "bar": to_float(thai_data.get("bar_sell")) if thai_data else 0,
@@ -166,6 +211,7 @@ def run_scheduled_jobs_once():
                     cursor.execute(
                         """
                         SELECT sf.id, sf.user_id, sf.target_date, sf.max_price, sf.min_price,
+                               sf.predicted_price, sf.model_name, sf.model_version,
                                u.name, u.email, u.line_user_id
                         FROM saved_forecasts sf
                         INNER JOIN users u ON u.id = sf.user_id
@@ -212,11 +258,27 @@ def run_scheduled_jobs_once():
                     if actual_sell is None or actual_buy is None:
                         continue
 
-                    is_accurate = (pred_min <= actual_sell <= pred_max) and (pred_min <= actual_buy <= pred_max)
-                    cursor.execute(
-                        "UPDATE saved_forecasts SET actual_max_price=%s, actual_min_price=%s, verified_at=NOW() WHERE id=%s",
-                        (actual_sell, actual_buy, row["id"]),
-                    )
+                    # The production target is the official bar sell price.
+                    is_accurate = pred_min <= actual_sell <= pred_max
+                    predicted_price = to_float(row.get("predicted_price"))
+                    try:
+                        cursor.execute(
+                            """
+                            UPDATE saved_forecasts SET actual_max_price=%s, actual_min_price=%s,
+                                actual_price=%s, absolute_error=%s, verified_at=NOW()
+                            WHERE id=%s
+                            """,
+                            (
+                                actual_sell, actual_sell, actual_sell,
+                                abs(predicted_price - actual_sell) if predicted_price is not None else None,
+                                row["id"],
+                            ),
+                        )
+                    except Exception:
+                        cursor.execute(
+                            "UPDATE saved_forecasts SET actual_max_price=%s, actual_min_price=%s, verified_at=NOW() WHERE id=%s",
+                            (actual_sell, actual_sell, row["id"]),
+                        )
                     stats["verified_forecasts"] += 1
 
                     target_date_display = str(target_date)

@@ -25,10 +25,13 @@ def build_series_from_db(days=365):
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT date, bar_sell FROM price_cache
-                    WHERE bar_sell IS NOT NULL
+                    SELECT date, bar_sell FROM (
+                        SELECT date, bar_sell FROM price_cache
+                        WHERE bar_sell IS NOT NULL
+                        ORDER BY date DESC
+                        LIMIT %s
+                    ) recent
                     ORDER BY date ASC
-                    LIMIT %s
                     """,
                     (days,),
                 )

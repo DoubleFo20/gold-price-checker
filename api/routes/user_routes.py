@@ -99,9 +99,15 @@ def php_compat_save_forecast():
     min_price = data.get("min_price")
     confidence = data.get("confidence")
     hist_days = data.get("hist_days")
+    model_name = (data.get("model_name") or "").strip()[:100] or None
+    model_version = (data.get("model_version") or "").strip()[:50] or None
+    predicted_price = data.get("predicted_price")
+    horizon_step = data.get("horizon_step")
     try:
         max_price = float(max_price); min_price = float(min_price)
-        confidence = float(confidence); hist_days = int(hist_days)
+        confidence = float(confidence or 0); hist_days = int(hist_days or 0)
+        predicted_price = float(predicted_price) if predicted_price is not None else None
+        horizon_step = int(horizon_step) if horizon_step is not None else None
     except Exception:
         return jsonify(success=False, message="ข้อมูลไม่ถูกต้อง"), 400
     if not target_date or not trend:
@@ -113,10 +119,29 @@ def php_compat_save_forecast():
             return err
         forecast_date = datetime.now().strftime("%Y-%m-%d")
         with conn.cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO saved_forecasts (user_id, forecast_date, target_date, trend, max_price, min_price, confidence, hist_days) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (user["id"], forecast_date, target_date, trend, max_price, min_price, confidence, hist_days),
-            )
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO saved_forecasts (
+                        user_id, forecast_date, target_date, trend, max_price, min_price,
+                        confidence, hist_days, model_name, model_version,
+                        horizon_step, predicted_price
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        user["id"], forecast_date, target_date, trend, max_price,
+                        min_price, confidence, hist_days, model_name, model_version,
+                        horizon_step, predicted_price,
+                    ),
+                )
+            except Exception as exc:
+                if "unknown column" not in str(exc).lower() and "1054" not in str(exc):
+                    raise
+                conn.rollback()
+                cursor.execute(
+                    "INSERT INTO saved_forecasts (user_id, forecast_date, target_date, trend, max_price, min_price, confidence, hist_days) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (user["id"], forecast_date, target_date, trend, max_price, min_price, confidence, hist_days),
+                )
         conn.commit()
         return jsonify(success=True, message="บันทึกสำเร็จ!"), 200
     except Exception:
@@ -138,7 +163,15 @@ def php_compat_get_saved_forecasts():
         with conn.cursor() as cursor:
             try:
                 cursor.execute(
-                    "SELECT id, user_id, forecast_date, target_date, trend, max_price, min_price, confidence, hist_days, actual_max_price, actual_min_price, verified_at, created_at FROM saved_forecasts WHERE user_id=%s ORDER BY created_at DESC LIMIT 100",
+                    """
+                    SELECT id, user_id, forecast_date, target_date, trend, max_price,
+                           min_price, confidence, hist_days, actual_max_price,
+                           actual_min_price, model_name, model_version, horizon_step,
+                           predicted_price, actual_price, absolute_error,
+                           direction_correct, verified_at, created_at
+                    FROM saved_forecasts WHERE user_id=%s
+                    ORDER BY created_at DESC LIMIT 100
+                    """,
                     (user["id"],),
                 )
             except Exception:

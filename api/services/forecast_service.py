@@ -1,228 +1,303 @@
-# services/forecast_service.py
-"""Business logic for gold price forecasting.
+"""Evidence-backed Thai gold forecasting service."""
 
-ดึง business logic ออกมาจาก routes/forecast.py เพื่อให้
-routes/forecast_routes.py เป็นแค่ HTTP wrapper ที่บางเท่านั้น
-JSON response format เหมือนเดิมทุกประการ
-"""
+from __future__ import annotations
 
-import time
+import ast
+import json
+import math
 import traceback
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
-from services.gold_price import thai_cache, world_cache
-from services.historical import (
-    historical_cache,
-    build_series_with_world_from_yfinance,
-    build_historical_gold_data_free,
-    build_series_from_db,
-)
+from database.connection import get_db_connection
 from services.email_service import send_forecast_email_smtp
-from utils.helpers import to_float
-
-try:
-    import numpy as np
-    from sklearn.linear_model import LinearRegression
-    HAVE_SKLEARN = True
-except ImportError:
-    HAVE_SKLEARN = False
-
-try:
-    from statsmodels.tsa.arima.model import ARIMA
-    HAVE_ARIMA = True
-except ImportError:
-    HAVE_ARIMA = False
+from services.forecast_data import OFFICIAL_SOURCE, load_official_price_series
+from services.forecast_models import (
+    MODEL_VERSION,
+    ModelSpec,
+    forecast_drift,
+    forecast_ets,
+    forecast_naive,
+    make_arima_forecaster,
+)
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-def _sklearn_forecast(recent_values, period):
-    """Run Linear Regression forecast and return prediction arrays."""
-    model_name = "Linear Regression"
-    X_train = np.array(range(len(recent_values))).reshape(-1, 1)
-    y_train = np.array(recent_values, dtype=float)
-    model = LinearRegression()
-    model.fit(X_train, y_train)
-    X_future = np.array(range(len(recent_values), len(recent_values) + period)).reshape(-1, 1)
-    preds = model.predict(X_future)
-    last_actual = float(recent_values[-1])
-    last_fitted = model.predict(np.array([[len(recent_values) - 1]]))[0]
-    offset = last_actual - last_fitted
-    preds = preds + offset
-    r2 = model.score(X_train, y_train)
-    confidence = max(50.0, min(95.0, r2 * 100))
-    residuals = y_train - model.predict(X_train)
-    std_err = np.std(residuals)
-    upper = (preds + 1.645 * std_err).tolist()
-    lower = (preds - 1.645 * std_err).tolist()
-    return preds.tolist(), upper, lower, confidence, model_name
+SUPPORTED_PERIODS = (1, 7)
 
 
-# ---------------------------------------------------------------------------
-# Public service functions
-# ---------------------------------------------------------------------------
+class ForecastUnavailableError(RuntimeError):
+    """Raised when trustworthy production forecasting is not ready."""
 
-def get_forecast(period: int = 7, model_name: str = "linear", hist_days: int = 90) -> dict:
-    """
-    สร้างข้อมูลพยากรณ์ราคาทอง
+    def __init__(self, reason: str, message: str = "ข้อมูลจริงยังไม่พร้อมสำหรับการพยากรณ์"):
+        super().__init__(message)
+        self.reason = reason
 
-    Args:
-        period:     จำนวนวันที่จะพยากรณ์ (1–90)
-        model_name: โมเดลที่ใช้ ('linear' / 'arima' / 'auto')
-        hist_days:  จำนวนวันข้อมูลย้อนหลังที่ใช้ฝึกโมเดล (30–365)
 
-    Returns:
-        dict ที่มี keys: labels, history, forecast, upper_bound, lower_bound,
-             summary, model, period
-    """
+def _load_champion() -> dict:
+    conn = get_db_connection()
     try:
-        period = max(1, min(period, 90))
-        hist_days = max(30, min(hist_days, 365))
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT model_name, model_version, trained_through, backtest_start,
+                       backtest_end, observations, metrics_json
+                FROM forecast_model_metrics
+                WHERE selected=1
+                ORDER BY created_at DESC LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+    except Exception as exc:
+        raise ForecastUnavailableError("model_metrics_unavailable") from exc
+    finally:
+        conn.close()
+    if not row:
+        raise ForecastUnavailableError("champion_not_selected")
+    metrics = row.get("metrics_json")
+    if isinstance(metrics, str):
+        metrics = json.loads(metrics)
+    row["metrics"] = metrics or {}
+    return row
 
-        now = time.time()
-        today = datetime.now().date().isoformat()
-        source = ""
 
-        # 1) ลองดึงข้อมูลจาก DB ก่อน
-        db_labels, db_values = build_series_from_db(days=365)
-        if db_labels and db_values and len(db_values) >= 30:
-            hist_labels, hist_values = db_labels, db_values
-            source = "price_cache (Real Thai Data)"
-        elif historical_cache["data"] and historical_cache.get("date") == today:
-            cache_data = historical_cache["data"]
-            hist_labels = cache_data.get("labels")
-            hist_values = cache_data.get("values") or cache_data.get("thai_values")
-            source = "cached"
-            if not hist_labels or not hist_values:
-                hist_labels, hist_values = None, None
-        else:
-            try:
-                hist_labels, hist_values, _ = build_series_with_world_from_yfinance(days=365)
-                source = "Yahoo Finance (Adjusted)"
-            except Exception as e:
-                print(f"Historical fetch failed: {e}")
-                hist_labels, hist_values = build_historical_gold_data_free(days=365)
-                source = "Synthetic (Estimated)"
-            historical_cache.update({"data": {"labels": hist_labels, "values": hist_values}, "ts": now, "date": today})
+def _model_spec(model_name: str) -> ModelSpec:
+    if model_name == "Baseline":
+        return ModelSpec("Baseline", 0, forecast_naive)
+    if model_name == "Drift":
+        return ModelSpec("Drift", 1, forecast_drift)
+    if model_name == "Holt ETS (damped)":
+        return ModelSpec("Holt ETS (damped)", 2, forecast_ets)
+    if model_name.startswith("ARIMA"):
+        try:
+            order = tuple(int(value) for value in ast.literal_eval(model_name[5:]))
+            if len(order) != 3:
+                raise ValueError
+        except Exception as exc:
+            raise ForecastUnavailableError("invalid_champion") from exc
+        return ModelSpec(model_name, 3, make_arima_forecaster(order))
+    raise ForecastUnavailableError("unknown_champion")
 
-        if not hist_labels or not hist_values:
-            hist_labels, hist_values = build_historical_gold_data_free(days=365)
-            source = source or "Synthetic (Estimated)"
 
-        recent_values = hist_values[-hist_days:]
-        if len(recent_values) < 10:
-            raise ValueError("Not enough historical data.")
+def _future_announcement_dates(last_date: str, count: int) -> list[str]:
+    """Project display dates by skipping Sundays; verification uses actual observations."""
+    cursor = date.fromisoformat(last_date)
+    result: list[str] = []
+    while len(result) < count:
+        cursor += timedelta(days=1)
+        if cursor.weekday() == 6:
+            continue
+        result.append(cursor.isoformat())
+    return result
 
-        forecasts, upper_bound, lower_bound, confidence = [], [], [], 70.0
-        last_actual = float(recent_values[-1])
 
-        # 2) ลอง ARIMA ก่อน แล้ว fallback ไป sklearn
-        ARIMA_FAILED = True
-        if HAVE_ARIMA and len(recent_values) >= 30:
-            try:
-                _model_name = "ARIMA(5,1,0)"
-                y = np.array(recent_values, dtype=float)
-                arima_model = ARIMA(y, order=(5, 1, 0))
-                arima_result = arima_model.fit()
-                forecast_result = arima_result.get_forecast(steps=period)
-                forecasts = forecast_result.predicted_mean.tolist()
-                diff = last_actual - forecasts[0]
-                forecasts = [v + (diff * (0.8**i)) for i, v in enumerate(forecasts)]
-                conf_int = forecast_result.conf_int(alpha=0.10)
-                lower_bound = (conf_int[:, 0] + diff).tolist()
-                upper_bound = (conf_int[:, 1] + diff).tolist()
-                aic = arima_result.aic
-                confidence = max(50.0, min(95.0, 100.0 - abs(aic) / 100.0))
-                model_name = _model_name
-                ARIMA_FAILED = False
-            except Exception as arima_err:
-                print(f"ARIMA failed: {arima_err}, falling back to sklearn")
+def _interval_errors(metrics: dict) -> tuple[float, float]:
+    horizons = metrics.get("horizons") or {}
+    try:
+        one = float(horizons["1"]["absolute_error_p90"])
+        seven = max(one, float(horizons["7"]["absolute_error_p90"]))
+        return one, seven
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ForecastUnavailableError("invalid_model_metrics") from exc
 
-        if ARIMA_FAILED:
-            if HAVE_SKLEARN:
-                forecasts, upper_bound, lower_bound, confidence, model_name = _sklearn_forecast(recent_values, period)
-            else:
-                raise ValueError("No forecast model available (install statsmodels or scikit-learn)")
 
-        # 3) Sanity clamp
-        max_daily_change = 0.015
-        clamped_forecasts = []
-        for i, p in enumerate(forecasts):
-            days_from_now = i + 1
-            max_p = last_actual * (1 + max_daily_change * days_from_now)
-            min_p = last_actual * (1 - max_daily_change * days_from_now)
-            clamped_forecasts.append(max(min_p, min(max_p, p)))
-        forecasts = clamped_forecasts
+def _evaluation_payload(champion: dict, period: int) -> dict:
+    horizon = (champion["metrics"].get("horizons") or {}).get(str(period)) or {}
+    return {
+        "mae_baht": horizon.get("mae_baht"),
+        "rmse_baht": horizon.get("rmse_baht"),
+        "smape_pct": horizon.get("smape_pct"),
+        "direction_accuracy_pct": horizon.get("direction_accuracy_pct"),
+        "interval_coverage_pct": horizon.get("interval_coverage_pct"),
+        "samples": horizon.get("samples"),
+        "backtest_start": str(champion.get("backtest_start"))[:10],
+        "backtest_end": str(champion.get("backtest_end"))[:10],
+    }
 
-        # 4) Momentum blend
-        recent_array = np.array(recent_values, dtype=float)
-        recent_deltas = np.diff(recent_array) if len(recent_array) > 1 else np.array([])
-        short_momentum = float(np.mean(recent_deltas[-5:])) if len(recent_deltas) >= 5 else (float(np.mean(recent_deltas)) if len(recent_deltas) else 0.0)
-        medium_momentum = float(np.mean(recent_deltas[-20:])) if len(recent_deltas) >= 20 else short_momentum
-        momentum = (0.7 * short_momentum) + (0.3 * medium_momentum)
-        volatility = float(np.std(recent_deltas[-20:])) if len(recent_deltas) >= 5 else (float(np.std(recent_deltas)) if len(recent_deltas) else 0.0)
 
-        raw_weight = 0.88 if period == 1 else 0.74 if period <= 7 else 0.64 if period <= 14 else 0.56
-        trend_boost = 1.0 if period == 1 else 1.08 if period <= 7 else 1.16 if period <= 14 else 1.22
-        base_band = max(volatility, last_actual * 0.0015)
+def get_forecast(period: int = 7, model_name: str = "champion", hist_days: int = 365) -> dict:
+    """Forecast one or seven future official announcement observations.
 
-        smoothed_forecasts, smoothed_upper, smoothed_lower = [], [], []
-        for i, p in enumerate(forecasts):
-            days_from_now = i + 1
-            trend_projection = last_actual + (momentum * days_from_now * trend_boost)
-            blend_weight = max(0.35, raw_weight - (0.02 * min(days_from_now, 10)))
-            blended = (blend_weight * float(p)) + ((1.0 - blend_weight) * trend_projection)
-            max_move = last_actual * (0.006 + (0.0012 * days_from_now))
-            clamped_p = max(last_actual - max_move, min(last_actual + max_move, blended))
-            smoothed_forecasts.append(clamped_p)
-            band = max(base_band * np.sqrt(days_from_now), abs(momentum) * days_from_now * 0.75, last_actual * 0.0025)
-            upper_candidate = float(upper_bound[i]) if i < len(upper_bound) else clamped_p
-            lower_candidate = float(lower_bound[i]) if i < len(lower_bound) else clamped_p
-            smoothed_upper.append(max(clamped_p + band, upper_candidate))
-            smoothed_lower.append(max(0.0, min(clamped_p - band, lower_candidate)))
+    ``model_name`` and ``hist_days`` remain accepted for compatibility, while
+    production always uses the persisted champion and its backtest evidence.
+    """
+    del model_name, hist_days
+    if period not in SUPPORTED_PERIODS:
+        raise ValueError("period must be 1 or 7 announcement days")
 
-        forecasts = [max(0.0, round(v, 2)) for v in smoothed_forecasts]
-        upper_bound = [max(0.0, round(v, 2)) for v in smoothed_upper]
-        lower_bound = [max(0.0, round(v, 2)) for v in smoothed_lower]
+    try:
+        labels, values, quality = load_official_price_series()
+    except Exception as exc:
+        raise ForecastUnavailableError("official_data_not_ready") from exc
+    champion = _load_champion()
+    if str(champion.get("trained_through"))[:10] > labels[-1]:
+        raise ForecastUnavailableError("champion_newer_than_data")
 
-        today_date = datetime.now().date()
-        forecast_labels = [(today_date + timedelta(days=i)).isoformat() for i in range(1, period + 1)]
-        trend = "ขาขึ้น" if forecasts[-1] >= recent_values[-1] else "ขาลง"
+    spec = _model_spec(champion["model_name"])
+    try:
+        predictions = [float(value) for value in spec.forecast(values, period)]
+    except Exception as exc:
+        raise ForecastUnavailableError("champion_fit_failed") from exc
+    if len(predictions) != period or any(not math.isfinite(value) or value <= 0 for value in predictions):
+        raise ForecastUnavailableError("invalid_prediction")
 
-        return {
-            "labels": hist_labels[-30:] + forecast_labels,
-            "history": hist_values[-30:],
-            "forecast": forecasts,
-            "upper_bound": upper_bound,
-            "lower_bound": lower_bound,
-            "summary": {
-                "trend": trend,
-                "max": max(forecasts),
-                "min": min(forecasts),
-                "confidence": round(confidence, 1),
-                "source": source,
-            },
-            "model": model_name,
-            "period": period,
-        }
+    error_one, error_seven = _interval_errors(champion["metrics"])
+    errors = [
+        error_one + (error_seven - error_one) * ((step - 1) / 6.0)
+        for step in range(1, period + 1)
+    ]
+    upper = [round(value + error, 2) for value, error in zip(predictions, errors)]
+    lower = [round(max(0.0, value - error), 2) for value, error in zip(predictions, errors)]
+    predictions = [round(value, 2) for value in predictions]
+    future_labels = _future_announcement_dates(labels[-1], period)
+    last_actual = float(values[-1])
 
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": "ไม่สามารถสร้างการพยากรณ์ได้ในขณะนี้", "details": str(e)}
+    return {
+        "labels": labels[-30:] + future_labels,
+        "history": values[-30:],
+        "forecast": predictions,
+        "upper_bound": upper,
+        "lower_bound": lower,
+        "summary": {
+            "trend": "ขาขึ้น" if predictions[-1] >= last_actual else "ขาลง",
+            "max": max(predictions),
+            "min": min(predictions),
+            "confidence": None,
+            "source": OFFICIAL_SOURCE,
+        },
+        "model": champion["model_name"],
+        "model_version": champion.get("model_version") or MODEL_VERSION,
+        "trained_through": labels[-1],
+        "period": period,
+        "evaluation": _evaluation_payload(champion, period),
+        "data_quality": quality,
+        "deprecations": ["model", "hist_days", "summary.confidence"],
+        "disclaimer": "ผลประมาณเชิงสถิติ ไม่ใช่คำแนะนำการลงทุน",
+    }
+
+
+def create_canonical_predictions() -> dict:
+    """Upsert the daily 1..7-step prediction path for monitoring."""
+    try:
+        labels, _, _ = load_official_price_series()
+        champion = _load_champion()
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) AS total FROM forecast_predictions
+                    WHERE trained_through=%s AND model_version=%s
+                    """,
+                    (labels[-1], champion["model_version"]),
+                )
+                existing = int((cursor.fetchone() or {}).get("total") or 0)
+        finally:
+            conn.close()
+        if existing >= 7:
+            return {"created": 0, "trained_through": labels[-1]}
+    except ForecastUnavailableError:
+        raise
+    except Exception as exc:
+        raise ForecastUnavailableError("canonical_storage_unavailable") from exc
+
+    payload = get_forecast(7)
+    origin = float(payload["history"][-1])
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            for step, (target, predicted, lower, upper) in enumerate(
+                zip(
+                    payload["labels"][-7:], payload["forecast"],
+                    payload["lower_bound"], payload["upper_bound"],
+                ),
+                start=1,
+            ):
+                cursor.execute(
+                    """
+                    INSERT INTO forecast_predictions (
+                        model_name, model_version, trained_through, horizon_step,
+                        projected_target_date, origin_price, predicted_price,
+                        lower_bound, upper_bound
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        projected_target_date=VALUES(projected_target_date),
+                        origin_price=VALUES(origin_price), predicted_price=VALUES(predicted_price),
+                        lower_bound=VALUES(lower_bound), upper_bound=VALUES(upper_bound)
+                    """,
+                    (
+                        payload["model"], payload["model_version"], payload["trained_through"],
+                        step, target, origin, predicted, lower, upper,
+                    ),
+                )
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        if "forecast_predictions" in str(exc).lower():
+            raise ForecastUnavailableError("prediction_storage_unavailable") from exc
+        raise
+    finally:
+        conn.close()
+    return {"created": 7, "trained_through": payload["trained_through"]}
+
+
+def _sign(value: float) -> int:
+    return 1 if value > 0 else -1 if value < 0 else 0
+
+
+def verify_canonical_predictions() -> int:
+    """Attach the Nth future official observation to each pending prediction."""
+    conn = get_db_connection()
+    verified = 0
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, trained_through, horizon_step, origin_price, predicted_price
+                FROM forecast_predictions
+                WHERE verified_at IS NULL
+                ORDER BY trained_through, horizon_step LIMIT 200
+                """
+            )
+            pending = cursor.fetchall() or []
+            for row in pending:
+                cursor.execute(
+                    """
+                    SELECT date, bar_sell FROM price_cache
+                    WHERE date > %s AND source=%s AND quality_status='verified'
+                    ORDER BY date ASC LIMIT 1 OFFSET %s
+                    """,
+                    (row["trained_through"], OFFICIAL_SOURCE, int(row["horizon_step"]) - 1),
+                )
+                actual_row = cursor.fetchone()
+                if not actual_row:
+                    continue
+                actual = float(actual_row["bar_sell"])
+                origin = float(row["origin_price"])
+                predicted = float(row["predicted_price"])
+                direction_correct = int(_sign(predicted - origin) == _sign(actual - origin))
+                cursor.execute(
+                    """
+                    UPDATE forecast_predictions SET actual_target_date=%s, actual_price=%s,
+                        absolute_error=%s, direction_correct=%s, verified_at=NOW()
+                    WHERE id=%s
+                    """,
+                    (
+                        actual_row["date"], actual, abs(predicted - actual),
+                        direction_correct, row["id"],
+                    ),
+                )
+                verified += 1
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        if "forecast_predictions" in str(exc).lower():
+            raise ForecastUnavailableError("prediction_storage_unavailable") from exc
+        raise
+    finally:
+        conn.close()
+    return verified
 
 
 def send_forecast_email(payload: dict) -> dict:
-    """
-    ส่งอีเมลสรุปผลพยากรณ์ราคาทอง
-
-    Args:
-        payload: dict ที่ต้องมี 'email' และ 'target_date'
-
-    Returns:
-        dict ที่มี key 'success' (bool) และ 'message' (str)
-    """
     if not payload.get("email") or not payload.get("target_date"):
         return {"success": False, "message": "Missing required fields"}
     try:
@@ -230,6 +305,6 @@ def send_forecast_email(payload: dict) -> dict:
         if sent:
             return {"success": True, "message": "Forecast email sent"}
         return {"success": False, "message": "Forecast email send failed"}
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Forecast email send failed"}

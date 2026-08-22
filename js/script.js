@@ -505,8 +505,8 @@ function renderProfileForecasts(items) {
             const predMax = parseFloat(item.max_price);
             const predMin = parseFloat(item.min_price);
 
-            // ราคาจริง (bar_sell) อยู่ในช่วง [min_price, max_price] ของพยากรณ์
-            const inRange = actualMax <= predMax && actualMin >= predMin;
+            // เป้าหมาย production คือราคาขายทองคำแท่งของวันประกาศราคา
+            const inRange = actualMax >= predMin && actualMax <= predMax;
 
             if (inRange) {
                 statusBadge = '<span class="profile-alert-badge done" style="margin:0; background:#16A085;">✅ ถูกต้อง</span>';
@@ -521,7 +521,7 @@ function renderProfileForecasts(items) {
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.88rem;">
                         <div><strong>ราคาขาย (จริง):</strong> ฿${fmtMoney(actualMax)}</div>
-                        <div><strong>ราคารับซื้อ (จริง):</strong> ฿${fmtMoney(actualMin)}</div>
+                        <div><strong>คลาดเคลื่อน:</strong> ${item.absolute_error == null ? '--' : `฿${fmtMoney(item.absolute_error)}`}</div>
                         <div><strong>ราคามากสุด (พยากรณ์):</strong> ฿${fmtMoney(predMax)}</div>
                         <div><strong>ราคาน้อยสุด (พยากรณ์):</strong> ฿${fmtMoney(predMin)}</div>
                     </div>
@@ -550,8 +550,8 @@ function renderProfileForecasts(items) {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 10px; font-size: 0.9rem; margin-top: 5px;">
                     <div><strong>ราคามากสุด:</strong> ฿${fmtMoney(item.max_price)}</div>
                     <div><strong>ราคาน้อยสุด:</strong> ฿${fmtMoney(item.min_price)}</div>
-                    <div><strong>แม่นยำ (R²):</strong> ${item.confidence}%</div>
-                    <div><strong>ข้อมูลฝึกฝน:</strong> ${item.hist_days} วัน</div>
+                    <div><strong>โมเดล:</strong> ${item.model_name || 'Legacy'}</div>
+                    <div><strong>ข้อมูลจริง:</strong> ${item.hist_days || '--'} วันประกาศราคา</div>
                 </div>
                 ${comparisonHTML}
                 <div class="profile-alert-sub" style="margin-top: 5px; width: 100%; text-align: right;">บันทึกเมื่อ: ${fmtDate(item.created_at)}</div>
@@ -1444,7 +1444,7 @@ async function fetchGoldNews() {
         box.innerHTML = `<p style="text-align:center;color:#e57373;">เกิดข้อผิดพลาดในการโหลดข่าว: ${e.message}</p>`;
     }
 }
-/* ==========  วาดกราฟพยากรณ์ (ARIMA + Confidence Band) ========== */
+/* ==========  วาดกราฟ Champion + ช่วงคลาดเคลื่อนจาก backtest ========== */
 function renderForecastChart(payload) {
     const el = document.getElementById('forecast-chart');
     if (!el || typeof Chart === 'undefined') return;
@@ -1455,9 +1455,8 @@ function renderForecastChart(payload) {
     const forecastLen = payload.forecast.length;
     const totalLen = labels.length;
 
-    // Build history line data — padded at start, null at end
-    const histPad = Array(totalLen - histLen).fill(null);
-    const histData = histPad.concat(payload.history);
+    // History labels come first; future labels occupy the trailing positions.
+    const histData = payload.history.concat(Array(totalLen - histLen).fill(null));
 
     // Build forecast data — overlap last real point for continuity
     const lastRealPrice = payload.history[histLen - 1];
@@ -1498,7 +1497,7 @@ function renderForecastChart(payload) {
             tension: 0.15
         },
         {
-            label: 'ขอบบน (90% CI)',
+            label: 'ขอบบน (ช่วงคาดการณ์ 90%)',
             data: upperData,
             borderColor: 'rgba(212,175,55,0.4)',
             backgroundColor: 'rgba(0,0,0,0)',
@@ -1509,7 +1508,7 @@ function renderForecastChart(payload) {
             tension: 0.15
         },
         {
-            label: 'ขอบล่าง (90% CI)',
+            label: 'ขอบล่าง (ช่วงคาดการณ์ 90%)',
             data: lowerData,
             borderColor: 'rgba(212,175,55,0.4)',
             backgroundColor: 'rgba(212,175,55,0.08)',
@@ -1578,7 +1577,13 @@ function renderForecastChart(payload) {
     document.getElementById('trend-indicator')?.replaceChildren(document.createTextNode(payload.summary.trend));
     document.getElementById('max-price')?.replaceChildren(document.createTextNode(`฿${fmt(payload.summary.max)} `));
     document.getElementById('min-price')?.replaceChildren(document.createTextNode(`฿${fmt(payload.summary.min)} `));
-    document.getElementById('confidence-level')?.replaceChildren(document.createTextNode(`${payload.summary.confidence}% `));
+    const evaluation = payload.evaluation || {};
+    document.getElementById('forecast-mae')?.replaceChildren(
+        document.createTextNode(evaluation.mae_baht == null ? '--' : `฿${fmt(evaluation.mae_baht)}`)
+    );
+    document.getElementById('direction-accuracy')?.replaceChildren(
+        document.createTextNode(evaluation.direction_accuracy_pct == null ? '--' : `${Number(evaluation.direction_accuracy_pct).toFixed(1)}%`)
+    );
 }
 /* ==========  ตัวเรียก API พยากรณ์ ========== */
 async function generateForecast() {
@@ -1596,12 +1601,12 @@ async function generateForecast() {
     resultsContainer.style.display = 'none';
 
     const periodEl = document.getElementById('forecast-period');
-    const histDaysEl = document.getElementById('forecast-hist-days');
-    if (!periodEl || !histDaysEl) return;
+    if (!periodEl) return;
 
     const period = parseInt(periodEl.value || '7', 10);
-    const histDays = histDaysEl.value || '90';
-    const model = 'ml-linear'; // บังคับใช้ AI Predictive ตัวเดียวที่เสถียรสุด
+    // Compatibility parameters remain in the API, but the server owns the champion.
+    const histDays = '365';
+    const model = 'champion';
 
     const trendEl = document.getElementById('trend-indicator');
     if (trendEl) trendEl.textContent = 'กำลังคำนวณ...';
@@ -1618,25 +1623,32 @@ async function generateForecast() {
         renderForecastChart(payload);
 
         // [เพิ่ม] อัปเดตข้อมูลสรุปเพิ่มเติม
-        document.getElementById('hist-days-display').textContent = histDays;
         document.getElementById('model-used-display').textContent = payload.model || 'N/A';
         document.getElementById('data-source-display').textContent = payload.summary.source || 'N/A';
+        document.getElementById('forecast-observations').textContent = payload.data_quality?.observations ?? '--';
+        document.getElementById('trained-through-display').textContent = payload.trained_through || '--';
         const trendDisplay = document.getElementById('trend-indicator');
         if (trendDisplay) trendDisplay.textContent = payload.summary.trend || '--';
         const maxDisplay = document.getElementById('max-price');
         if (maxDisplay) maxDisplay.textContent = payload.summary.max ? Number(payload.summary.max).toLocaleString() : '--';
         const minDisplay = document.getElementById('min-price');
         if (minDisplay) minDisplay.textContent = payload.summary.min ? Number(payload.summary.min).toLocaleString() : '--';
-        const confidenceDisplay = document.getElementById('confidence-level');
-        if (confidenceDisplay) confidenceDisplay.textContent = payload.summary.confidence ? `${payload.summary.confidence}% ` : '--';
+        const maeDisplay = document.getElementById('forecast-mae');
+        if (maeDisplay) maeDisplay.textContent = payload.evaluation?.mae_baht == null ? '--' : `฿${Number(payload.evaluation.mae_baht).toLocaleString()}`;
+        const directionDisplay = document.getElementById('direction-accuracy');
+        if (directionDisplay) directionDisplay.textContent = payload.evaluation?.direction_accuracy_pct == null ? '--' : `${Number(payload.evaluation.direction_accuracy_pct).toFixed(1)}%`;
 
         window.latestForecastData = {
             target_date: payload.labels[payload.labels.length - 1],
             trend: payload.summary.trend,
             max_price: payload.summary.max,
             min_price: payload.summary.min,
-            confidence: payload.summary.confidence,
-            hist_days: histDays
+            confidence: payload.evaluation?.direction_accuracy_pct || 0,
+            hist_days: payload.data_quality?.observations || 0,
+            model_name: payload.model,
+            model_version: payload.model_version,
+            predicted_price: payload.forecast[payload.forecast.length - 1],
+            horizon_step: period
         };
 
         const btnSaveForecast = document.getElementById('save-forecast-btn');

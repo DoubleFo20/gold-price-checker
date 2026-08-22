@@ -88,6 +88,23 @@ class ProductionApplicationTests(unittest.TestCase):
         response = self.client.get("/api/debug/db")
         self.assertEqual(response.status_code, 404)
 
+    def test_forecast_rejects_unsupported_horizon(self):
+        response = self.client.get("/api/forecast?period=14")
+        self.assertEqual(response.status_code, 400)
+
+    def test_forecast_reports_not_ready_without_exposing_database_details(self):
+        from services.forecast_service import ForecastUnavailableError
+
+        with patch(
+            "routes.forecast_routes.get_forecast",
+            side_effect=ForecastUnavailableError("official_data_not_ready"),
+        ):
+            response = self.client.get("/api/forecast?period=7")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.get_json()["reason"], "official_data_not_ready")
+        self.assertNotIn("DB_HOST", response.get_data(as_text=True))
+
     def test_webhook_rejects_missing_signature(self):
         response = self.client.post("/webhook", data=b"{}", content_type="application/json")
         self.assertEqual(response.status_code, 400)
@@ -197,6 +214,8 @@ class DeploymentSchemaTests(unittest.TestCase):
         self.assertIn("CREATE TABLE IF NOT EXISTS PASSWORD_RESETS", normalized)
         self.assertIn("ACTUAL_MAX_PRICE", normalized)
         self.assertIn("IS_VERIFIED", normalized)
+        self.assertIn("CREATE TABLE IF NOT EXISTS FORECAST_MODEL_METRICS", normalized)
+        self.assertIn("CREATE TABLE IF NOT EXISTS FORECAST_PREDICTIONS", normalized)
 
 
 class DatabaseConnectionTests(unittest.TestCase):

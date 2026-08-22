@@ -252,15 +252,30 @@ def admin_forecasts():
             return err
 
         with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT f.id, f.target_date, f.max_price, f.min_price,
-                       f.trend, f.confidence, f.created_at,
-                       u.email, u.name
-                FROM saved_forecasts f
-                LEFT JOIN users u ON u.id = f.user_id
-                ORDER BY f.created_at DESC
-                LIMIT 100
-            """)
+            try:
+                cursor.execute("""
+                    SELECT f.id, f.target_date, f.max_price, f.min_price,
+                           f.trend, f.model_name, f.model_version, f.horizon_step,
+                           f.predicted_price, f.actual_price, f.absolute_error,
+                           f.direction_correct, f.created_at,
+                           u.email, u.name
+                    FROM saved_forecasts f
+                    LEFT JOIN users u ON u.id = f.user_id
+                    ORDER BY f.created_at DESC
+                    LIMIT 100
+                """)
+            except Exception as exc:
+                if "unknown column" not in str(exc).lower() and "1054" not in str(exc):
+                    raise
+                conn.rollback()
+                cursor.execute("""
+                    SELECT f.id, f.target_date, f.max_price, f.min_price,
+                           f.trend, f.created_at, u.email, u.name
+                    FROM saved_forecasts f
+                    LEFT JOIN users u ON u.id = f.user_id
+                    ORDER BY f.created_at DESC
+                    LIMIT 100
+                """)
             rows = cursor.fetchall() or []
 
         items = []

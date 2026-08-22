@@ -1,23 +1,38 @@
 # routes/forecast_routes.py – Forecast endpoint wrapper
 """Defines the ``/api/forecast`` and ``/api/forecast/send-email`` endpoints.
-All business logic is delegated to ``services.forecast_service``.
-The JSON response format remains exactly the same as before.
+All business logic is delegated to ``services.forecast_service``.  Legacy
+query parameters remain accepted, while the response includes evidence and
+data-quality metadata for the persisted champion model.
 """
 
 from flask import Blueprint, jsonify, request
 
-from services.forecast_service import get_forecast, send_forecast_email
+from services.forecast_service import (
+    ForecastUnavailableError,
+    get_forecast,
+    send_forecast_email,
+)
 
 forecast_bp = Blueprint("forecast", __name__)
 
 @forecast_bp.route("/api/forecast", methods=["GET"])
 def forecast():
-    period = int(request.args.get("period", 7))
+    try:
+        period = int(request.args.get("period", 7))
+        hist_days = int(request.args.get("hist_days", 365))
+    except (TypeError, ValueError):
+        return jsonify(error="period และ hist_days ต้องเป็นจำนวนเต็ม"), 400
+    if period not in (1, 7):
+        return jsonify(error="รองรับเฉพาะ 1 หรือ 7 วันประกาศราคา"), 400
     model_name = str(request.args.get("model", "linear")).lower()
-    hist_days = int(request.args.get("hist_days", 90))
-    result = get_forecast(period, model_name, hist_days)
-    status = 200 if "error" not in result else 500
-    return jsonify(result), status
+    try:
+        return jsonify(get_forecast(period, model_name, hist_days)), 200
+    except ForecastUnavailableError as exc:
+        return jsonify(
+            error=str(exc),
+            reason=exc.reason,
+            forecast_ready=False,
+        ), 503
 
 @forecast_bp.route("/api/forecast/send-email", methods=["POST", "OPTIONS"])
 def forecast_send_email():
