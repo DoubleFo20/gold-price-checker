@@ -48,6 +48,42 @@ class ProductionApplicationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.get_json()["ok"])
 
+    def test_database_health_reports_ready(self):
+        connection = unittest.mock.MagicMock()
+        with patch("routes.main.get_db_connection", return_value=connection):
+            response = self.client.get("/health/db")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["database"], "ready")
+        connection.close.assert_called_once()
+
+    def test_database_health_hides_connection_error(self):
+        with patch(
+            "routes.main.get_db_connection",
+            side_effect=RuntimeError("private-db-host.example"),
+        ):
+            response = self.client.get("/health/db")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.get_json(), {
+            "database": "unavailable",
+            "ok": False,
+        })
+        self.assertNotIn("private-db-host", response.get_data(as_text=True))
+
+    def test_login_hides_database_connection_error(self):
+        with patch(
+            "routes.auth_routes.get_db_connection",
+            side_effect=RuntimeError("private-db-host.example"),
+        ):
+            response = self.client.post(
+                "/api/api/auth/login.php",
+                json={"email": "demo@example.com", "password": "password"},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("private-db-host", response.get_data(as_text=True))
+
     def test_database_debug_endpoint_is_hidden_in_production(self):
         response = self.client.get("/api/debug/db")
         self.assertEqual(response.status_code, 404)

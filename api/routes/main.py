@@ -1,6 +1,6 @@
 """routes/main.py — Core endpoints + static file serving for the frontend."""
 import os
-from flask import Blueprint, jsonify, request, send_from_directory, redirect
+from flask import Blueprint, current_app, jsonify, request, send_from_directory, redirect
 from datetime import datetime
 from database.connection import get_db_connection
 from services.auth import _auth_get_user_by_session
@@ -67,6 +67,28 @@ def api_meta():
 @main_bp.route("/health", methods=["GET"])
 def health():
     return jsonify(ok=True, time=datetime.now().isoformat())
+
+
+@main_bp.route("/health/db", methods=["GET"])
+def database_health():
+    """Report database readiness without exposing connection details."""
+    connection = None
+    try:
+        connection = get_db_connection()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 AS ok")
+            cursor.fetchone()
+        return jsonify(ok=True, database="ready"), 200
+    except Exception as exc:
+        # Log only the exception type so credentials and managed-service hosts
+        # cannot leak through public responses or routine readiness logs.
+        current_app.logger.error(
+            "Database readiness check failed (%s)", type(exc).__name__,
+        )
+        return jsonify(ok=False, database="unavailable"), 503
+    finally:
+        if connection:
+            connection.close()
 
 @main_bp.route("/api/admin", methods=["GET"])
 @main_bp.route("/api/admin/<path:path>", methods=["GET"])

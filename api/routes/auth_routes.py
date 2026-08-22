@@ -67,8 +67,15 @@ def php_compat_login():
         resp.set_cookie("session_token", token, expires=expires_ts, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
         return resp, 200
     except Exception as exc:
-        traceback.print_exc()
-        return jsonify(success=False, message=f"ไม่สามารถเชื่อมต่อฐานข้อมูลได้: {str(exc)}"), 500
+        # Keep managed-database hosts and connection details out of the public
+        # response; the exception type is sufficient for operational logs.
+        current_app.logger.error(
+            "Login database operation failed (%s)", type(exc).__name__,
+        )
+        return jsonify(
+            success=False,
+            message="ระบบฐานข้อมูลไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้งภายหลัง",
+        ), 503
     finally:
         if conn:
             conn.close()
