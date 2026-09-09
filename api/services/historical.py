@@ -78,7 +78,7 @@ def build_series_from_yfinance(days=365):
 def build_series_with_world_from_yfinance(days=365):
     from services.gold_price import thai_cache
     db_labels, db_values = build_series_from_db(days)
-    if db_labels and db_values and len(db_values) >= 30:
+    if db_labels and db_values and len(db_values) >= min(days, 7):
         usdthb = get_usdthb()
         factor = usdthb * (15.244 / 31.1035) * 0.965
         values_usd = [v / factor * 10.0 for v in db_values]

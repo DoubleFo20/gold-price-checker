@@ -19,7 +19,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # In-memory caches (module-level is fine — not import-time side-effects)
 # ---------------------------------------------------------------------------
-CACHE_DURATION = 30
+CACHE_DURATION = 300
 thai_cache  = {"data": None, "ts": 0}
 world_cache = {"data": None, "ts": 0}
 
@@ -123,7 +123,7 @@ def _fetch_world_from_fred_lbma():
 def _fetch_world_from_yfinance():
     if not HAVE_YFINANCE:
         raise ImportError("yfinance not installed")
-    for symbol in ("XAUUSD=X", "GC=F"):
+    for symbol in ("XAUUSD=X",):
         try:
             t = yf.Ticker(symbol)
             hist = t.history(period="5d")

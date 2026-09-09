@@ -20,7 +20,8 @@ try:
 except ImportError:
     yf = None
 
-CACHE_DURATION = 30
+CACHE_DURATION = 300
+news_cache = {}
 prices_bp = Blueprint("prices", __name__)
 
 
@@ -92,12 +93,16 @@ def api_thai():
 def api_historical():
     try:
         days = int(request.args.get("days", 365))
-        days = max(30, min(days, 365))
+        days = max(7, min(days, 365))
         now = time.time()
         today = datetime.now().date().isoformat()
-        if (historical_cache["data"] and historical_cache.get("date") == today
-                and now - historical_cache["ts"] < CACHE_DURATION):
-            return jsonify(historical_cache["data"])
+        
+        cache_key = f"days_{days}"
+        if cache_key in historical_cache:
+            entry = historical_cache[cache_key]
+            if entry.get("data") and entry.get("date") == today and now - entry.get("ts", 0) < CACHE_DURATION:
+                return jsonify(entry["data"])
+                
         source = ""
         try:
             labels, thai_values, world_values = build_series_with_world_from_yfinance(days=days)
@@ -115,7 +120,7 @@ def api_historical():
             "source": source,
             "updated_at": datetime.now().isoformat(),
         }
-        historical_cache.update({"data": data, "ts": now, "date": today})
+        historical_cache[cache_key] = {"data": data, "ts": now, "date": today}
         return jsonify(data)
     except Exception as e:
         traceback.print_exc()
@@ -211,6 +216,11 @@ def api_news():
         # ถ้า frontend ขอ gold เปลี่ยนเป็นภาษาไทยเพื่อให้เหมาะกับผู้ใช้คนไทย
         query = "ราคาทอง"
         
+    global news_cache
+    now = time.time()
+    if query in news_cache and now - news_cache[query].get("ts", 0) < 600:
+        return jsonify(news_cache[query]["data"]), 200
+        
     encoded_query = urllib.parse.quote(query)
     
     # 2. ใช้ Google News RSS แบบรองรับภาษาไทย
@@ -273,11 +283,13 @@ def api_news():
                 "description": desc_text
             })
             
-        return jsonify({
+        data = {
             "status": "ok",
             "totalResults": len(articles),
             "articles": articles
-        }), 200
+        }
+        news_cache[query] = {"data": data, "ts": time.time()}
+        return jsonify(data), 200
         
     except Exception as e:
         import traceback
