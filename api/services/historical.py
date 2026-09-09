@@ -36,7 +36,7 @@ def build_series_from_db(days=365):
                     (days,),
                 )
                 rows = cursor.fetchall()
-            if len(rows) < 10:
+            if len(rows) < min(days, 3):
                 return None, None
             labels = [r["date"].strftime("%Y-%m-%d") if hasattr(r["date"], "strftime") else str(r["date"]) for r in rows]
             values = [float(r["bar_sell"]) for r in rows]
