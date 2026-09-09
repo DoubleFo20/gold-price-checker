@@ -22,8 +22,8 @@ def forecast():
         hist_days = int(request.args.get("hist_days", 365))
     except (TypeError, ValueError):
         return jsonify(error="period และ hist_days ต้องเป็นจำนวนเต็ม"), 400
-    if period not in (1, 7):
-        return jsonify(error="รองรับเฉพาะ 1 หรือ 7 วันประกาศราคา"), 400
+    if period not in (1, 7, 30):
+        return jsonify(error="รองรับเฉพาะ 1, 7 หรือ 30 วันประกาศราคา"), 400
     model_name = str(request.args.get("model", "linear")).lower()
     try:
         return jsonify(get_forecast(period, model_name, hist_days)), 200
