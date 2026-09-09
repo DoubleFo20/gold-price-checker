@@ -93,6 +93,7 @@ def delete_alert(alert_id):
 
 # ---- PHP-compat /api/api/alerts/* endpoints ----
 
+@alerts_bp.route("/api/alerts/create.php", methods=["POST", "OPTIONS"])
 @alerts_bp.route("/api/api/alerts/create.php", methods=["POST", "OPTIONS"])
 def php_compat_alerts_create():
     if request.method == "OPTIONS":
@@ -135,6 +136,7 @@ def php_compat_alerts_create():
         conn.close()
 
 
+@alerts_bp.route("/api/alerts/list.php", methods=["GET", "OPTIONS"])
 @alerts_bp.route("/api/api/alerts/list.php", methods=["GET", "OPTIONS"])
 def php_compat_alerts_list():
     if request.method == "OPTIONS":
@@ -155,6 +157,7 @@ def php_compat_alerts_list():
         conn.close()
 
 
+@alerts_bp.route("/api/alerts/delete.php", methods=["POST", "OPTIONS"])
 @alerts_bp.route("/api/api/alerts/delete.php", methods=["POST", "OPTIONS"])
 def php_compat_alerts_delete():
     if request.method == "OPTIONS":

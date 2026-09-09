@@ -7,7 +7,7 @@ with tools like Gunicorn.
 """
 
 import os
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 
 # Load environment variables early
@@ -15,6 +15,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # CORS helpers
 from utils.config import ALLOWED_ORIGINS, _origin_allowed
+from utils.limiter import limiter
 
 
 def create_app() -> Flask:
@@ -31,6 +32,22 @@ def create_app() -> Flask:
         app.config.from_object("config.production.ProductionConfig")
     else:
         app.config.from_object("config.development.DevelopmentConfig")
+
+    # Initialize rate limiting
+    limiter.init_app(app)
+
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        """JSON response for rate limit violations."""
+        return (
+            jsonify(
+                success=False,
+                error="rate_limit_exceeded",
+                message="คำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง (Rate limit exceeded)",
+                description=str(getattr(e, "description", e)),
+            ),
+            429,
+        )
 
     @app.after_request
     def after_request(response):

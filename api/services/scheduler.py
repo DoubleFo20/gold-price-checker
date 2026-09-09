@@ -5,8 +5,8 @@ from datetime import datetime
 from utils.helpers import to_float
 from database.connection import get_db_connection, _ensure_users_columns
 from services.gold_price import refresh_thai_cache, refresh_world_cache, thai_cache, world_cache
-from services.notification import _deliver_price_alert
-from services.email_service import send_forecast_result_email_smtp
+from services.notification import _deliver_price_alert, _save_in_app_notification, _send_web_push
+from services.email_service import send_forecast_result_email_smtp, send_morning_price_summary_email_smtp
 from services.line_service import _line_push
 from services.forecast_service import (
     ForecastUnavailableError,
@@ -321,3 +321,122 @@ def run_scheduled_jobs_once():
         conn.close()
 
     return stats
+
+
+def job_morning_price_summary():
+    """Fetch latest gold prices and dispatch daily morning summary notifications to opted-in users / channels."""
+    stats = {
+        "ok": True,
+        "users_count": 0,
+        "in_app_saved": 0,
+        "line_sent": 0,
+        "push_sent": 0,
+        "email_sent": 0,
+        "prices": {},
+        "errors": [],
+    }
+
+    try:
+        thai_data = refresh_thai_cache()
+    except Exception as e:
+        stats["errors"].append(f"thai_refresh_failed: {e}")
+        thai_data = thai_cache.get("data") or {}
+
+    try:
+        world_data = refresh_world_cache()
+    except Exception as e:
+        stats["errors"].append(f"world_refresh_failed: {e}")
+        world_data = world_cache.get("data") or {}
+
+    bar_sell = to_float(thai_data.get("bar_sell"))
+    bar_buy = to_float(thai_data.get("bar_buy"))
+    world_usd = to_float(world_data.get("price_usd_per_ounce")) if world_data else None
+    world_thb = to_float(world_data.get("thb_per_baht_est")) if world_data else None
+
+    stats["prices"] = {
+        "bar_sell": bar_sell,
+        "bar_buy": bar_buy,
+        "world_usd": world_usd,
+        "world_thb": world_thb,
+    }
+
+    if not bar_sell and not bar_buy:
+        stats["ok"] = False
+        stats["errors"].append("Price data not available for morning summary")
+        return stats
+
+    today_str = datetime.now().strftime("%d/%m/%Y")
+    title = "🌅 สรุปราคาทองคำเช้านี้"
+    world_display = f" | World Spot: ${world_usd:,.2f}/oz" if world_usd else ""
+    body = f"ทองคำแท่ง ขายออก: ฿{bar_sell:,.2f} รับซื้อ: ฿{bar_buy:,.2f}{world_display}"
+    line_msg = (
+        f"🌅 สรุปราคาทองคำเช้านี้ ({today_str})\n"
+        f"- ทองแท่ง ขายออก: ฿{bar_sell:,.2f}\n"
+        f"- ทองแท่ง รับซื้อ: ฿{bar_buy:,.2f}\n"
+    )
+    if world_usd:
+        line_msg += f"- World Spot: ${world_usd:,.2f}/oz\n"
+    line_msg += "เปิดดูกราฟและพยากรณ์ได้ที่ Gold Price Today"
+
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        stats["ok"] = False
+        stats["errors"].append(f"db_connect_failed: {e}")
+        return stats
+
+    try:
+        with conn.cursor() as cursor:
+            _ensure_users_columns(conn, ("line_user_id", "push_subscription"))
+            users = []
+            try:
+                cursor.execute(
+                    """
+                    SELECT id, name, email, line_user_id, push_subscription
+                    FROM users
+                    WHERE is_active = 1
+                    """
+                )
+                users = cursor.fetchall() or []
+            except Exception:
+                try:
+                    cursor.execute("SELECT id, name, email FROM users WHERE is_active = 1")
+                    users = cursor.fetchall() or []
+                except Exception as e:
+                    stats["errors"].append(f"users_query_failed: {e}")
+
+            stats["users_count"] = len(users)
+
+            for user in users:
+                uid = user.get("id")
+                uname = user.get("name") or "นักลงทุน"
+                uemail = (user.get("email") or "").strip()
+                line_uid = (user.get("line_user_id") or "").strip()
+                push_sub = user.get("push_subscription")
+
+                # In-app notification
+                if uid:
+                    if _save_in_app_notification(conn, uid, title, body, notif_type="system", link="/"):
+                        stats["in_app_saved"] += 1
+
+                # LINE push notification
+                if line_uid:
+                    if _line_push(line_uid, line_msg):
+                        stats["line_sent"] += 1
+
+                # Web Push notification
+                if push_sub:
+                    if _send_web_push(push_sub, title, body, url="/"):
+                        stats["push_sent"] += 1
+
+                # Email notification
+                if uemail:
+                    if send_morning_price_summary_email_smtp(uemail, uname, bar_sell, bar_buy, world_usd, user_id=uid):
+                        stats["email_sent"] += 1
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    return stats
+

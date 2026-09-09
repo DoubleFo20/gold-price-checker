@@ -9,6 +9,7 @@ from flask import Blueprint, abort, current_app, jsonify, request
 from database.connection import get_db_connection, _retry_after_users_column_fix
 from services.auth import _auth_get_user_by_session, _require_auth_user
 from utils.helpers import _client_ip, _cookie_secure, _bcrypt_verify, _bcrypt_hash
+from utils.limiter import limiter
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -35,7 +36,10 @@ def debug_db():
         return jsonify(success=False, db_ok=False, error=str(exc)), 500
 
 
+@auth_bp.route("/api/auth/login", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/login.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/login.php", methods=["POST", "OPTIONS"])
+@limiter.limit("5 per minute")
 def php_compat_login():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
@@ -81,7 +85,10 @@ def php_compat_login():
             conn.close()
 
 
+@auth_bp.route("/api/auth/register", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/register.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/register.php", methods=["POST", "OPTIONS"])
+@limiter.limit("5 per minute")
 def php_compat_register():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
@@ -113,6 +120,9 @@ def php_compat_register():
             conn.close()
 
 
+@auth_bp.route("/api/auth/check-session", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/check_session", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/check_session.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/check_session.php", methods=["POST", "OPTIONS"])
 def php_compat_check_session():
     if request.method == "OPTIONS":
@@ -135,6 +145,9 @@ def php_compat_check_session():
             conn.close()
 
 
+@auth_bp.route("/api/auth/update-profile", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/update_profile", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/update_profile.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/update_profile.php", methods=["POST", "OPTIONS"])
 def php_compat_update_profile():
     if request.method == "OPTIONS":
@@ -163,7 +176,11 @@ def php_compat_update_profile():
             conn.close()
 
 
+@auth_bp.route("/api/auth/change-password", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/change_password", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/change_password.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/change_password.php", methods=["POST", "OPTIONS"])
+@limiter.limit("5 per minute")
 def php_compat_change_password():
     if request.method == "OPTIONS":
         return jsonify(success=True), 200
@@ -186,8 +203,12 @@ def php_compat_change_password():
         new_hash = _bcrypt_hash(new_password)
         with conn.cursor() as cursor:
             cursor.execute("UPDATE users SET password_hash=%s WHERE id=%s", (new_hash, user["id"]))
+            # Immediately revoke all existing active sessions for this user
+            cursor.execute("DELETE FROM sessions WHERE user_id=%s", (user["id"],))
         conn.commit()
-        return jsonify(success=True, message="เปลี่ยนรหัสผ่านสำเร็จ"), 200
+        resp = jsonify(success=True, message="เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่")
+        resp.set_cookie("session_token", "", expires=0, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
+        return resp, 200
     except Exception as exc:
         traceback.print_exc()
         return jsonify(success=False, message=f"ไม่สามารถเปลี่ยนรหัสผ่านได้: {str(exc)}"), 500
@@ -196,6 +217,8 @@ def php_compat_change_password():
             conn.close()
 
 
+@auth_bp.route("/api/auth/logout", methods=["POST", "OPTIONS"])
+@auth_bp.route("/api/auth/logout.php", methods=["POST", "OPTIONS"])
 @auth_bp.route("/api/api/auth/logout.php", methods=["POST", "OPTIONS"])
 def php_compat_logout():
     if request.method == "OPTIONS":
@@ -209,12 +232,12 @@ def php_compat_logout():
                 cursor.execute("DELETE FROM sessions WHERE token=%s", (token,))
             conn.commit()
         resp = jsonify(success=True, message="Logged out")
-        resp.set_cookie("session_token", "", expires=0, path="/")
+        resp.set_cookie("session_token", "", expires=0, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
         return resp, 200
     except Exception as exc:
         traceback.print_exc()
         resp = jsonify(success=False, message=f"Logout failed: {str(exc)}")
-        resp.set_cookie("session_token", "", expires=0, path="/")
+        resp.set_cookie("session_token", "", expires=0, path="/", secure=_cookie_secure(), httponly=True, samesite="Lax")
         return resp, 500
     finally:
         if conn:

@@ -52,8 +52,12 @@ let chartThai, chartWorld, forecastChart;
 let latestThaiPrices = {};
 
 function buildPythonApiUrl(path) {
+    const p = String(path || '');
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+        return p;
+    }
     const base = String(window.APP_CONFIG?.PYTHON_API_URL || '').replace(/\/+$/, '');
-    const suffix = String(path || '').startsWith('/') ? path : `/${path}`;
+    const suffix = p.startsWith('/') ? p : `/${p}`;
     return `${base}${suffix}`;
 }
 

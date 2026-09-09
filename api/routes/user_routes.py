@@ -10,6 +10,9 @@ from services.line_service import _line_connect_meta
 user_bp = Blueprint("user", __name__)
 
 
+@user_bp.route("/api/profile/update-push", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/update_push", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/update_push.php", methods=["POST", "OPTIONS"])
 @user_bp.route("/api/api/profile/update_push.php", methods=["POST", "OPTIONS"])
 def php_compat_update_push():
     if request.method == "OPTIONS":
@@ -36,6 +39,9 @@ def php_compat_update_push():
         conn.close()
 
 
+@user_bp.route("/api/profile/generate-line-code", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/generate_line_code", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/generate_line_code.php", methods=["POST", "OPTIONS"])
 @user_bp.route("/api/api/profile/generate_line_code.php", methods=["POST", "OPTIONS"])
 def php_compat_generate_line_code():
     if request.method == "OPTIONS":
@@ -59,6 +65,9 @@ def php_compat_generate_line_code():
         conn.close()
 
 
+@user_bp.route("/api/profile/update-line", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/update_line", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/profile/update_line.php", methods=["POST", "OPTIONS"])
 @user_bp.route("/api/api/profile/update_line.php", methods=["POST", "OPTIONS"])
 def php_compat_update_line():
     if request.method == "OPTIONS":
@@ -87,6 +96,9 @@ def php_compat_update_line():
         conn.close()
 
 
+@user_bp.route("/api/user/save-forecast", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/user/save_forecast", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/user/save_forecast.php", methods=["POST", "OPTIONS"])
 @user_bp.route("/api/api/user/save_forecast.php", methods=["POST", "OPTIONS"])
 def php_compat_save_forecast():
     if request.method == "OPTIONS":
@@ -151,6 +163,9 @@ def php_compat_save_forecast():
         conn.close()
 
 
+@user_bp.route("/api/user/get-saved-forecasts", methods=["GET", "OPTIONS"])
+@user_bp.route("/api/user/get_saved_forecasts", methods=["GET", "OPTIONS"])
+@user_bp.route("/api/user/get_saved_forecasts.php", methods=["GET", "OPTIONS"])
 @user_bp.route("/api/api/user/get_saved_forecasts.php", methods=["GET", "OPTIONS"])
 def php_compat_get_saved_forecasts():
     if request.method == "OPTIONS":
@@ -188,6 +203,8 @@ def php_compat_get_saved_forecasts():
         conn.close()
 
 
+@user_bp.route("/api/notifications/list", methods=["GET", "OPTIONS"])
+@user_bp.route("/api/notifications/list.php", methods=["GET", "OPTIONS"])
 @user_bp.route("/api/api/notifications/list.php", methods=["GET", "OPTIONS"])
 def php_compat_notifications_list():
     if request.method == "OPTIONS":
@@ -222,6 +239,9 @@ def php_compat_notifications_list():
         conn.close()
 
 
+@user_bp.route("/api/notifications/mark-read", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/notifications/mark_read", methods=["POST", "OPTIONS"])
+@user_bp.route("/api/notifications/mark_read.php", methods=["POST", "OPTIONS"])
 @user_bp.route("/api/api/notifications/mark_read.php", methods=["POST", "OPTIONS"])
 def php_compat_notifications_mark_read():
     if request.method == "OPTIONS":
