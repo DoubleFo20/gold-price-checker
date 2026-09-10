@@ -1,102 +1,116 @@
-﻿# Project: Gold Price Checker (100% Production Readiness)
+# Project: Forecast Engine Restoration & Admin Chart Optimization
 
 ## Architecture
-- **Backend**: Python 3.11 / Flask application factory (`api/app/create_app.py`) serving modular blueprints (`auth`, `forecast`, `alerts`, `prices`, `jobs`, `webhook`, `user`, `admin`).
-- **Database**: PyMySQL with DBUtils connection pooling (`api/database/connection.py`) connecting to 17 canonical tables in MySQL/Aiven database.
-- **Security & Middleware**: Flask-Limiter for IP/route rate limiting, secure password hashing (bcrypt), token-based sessions with immediate revocation on password reset.
-- **Forecasting Engine**:
-  - Agent A: Technical and statistical projections (ARIMA, Exponential Smoothing, moving averages).
-  - Agent B: Macroeconomic & FX-adjusted projections (USD/THB GTA exchange rates, World Spot momentum, import parity).
-  - Consensus & Debate Engine: Discrepancy detection (> 3%), algorithmic debate, weighted consensus, strict volatility-scaled Min-Max bounds ($Z \cdot \sigma \sqrt{h}$).
-- **Notifications**: Multi-channel delivery engine (LINE Messaging API push & webhook, SMTP HTML email with `email_logs` delivery tracking, Web Push VAPID + hardened `sw.js`).
-- **Frontend**: Standardized vanilla JavaScript SPA calling unified Flask endpoints (`/api/*`). Legacy PHP scripts deprecated.
-- **Testing & CI/CD**: Pytest automated test suites covering all blueprints, backtesting validation ensuring MAPE < 5%, and automated Git synchronization to `origin/main`.
+- **Backend**: Python 3.11 / Flask application factory (`api/app/create_app.py`) serving modular blueprints (`forecast`, `prices`, `auth`, `alerts`, `admin`).
+- **Forecasting Engine (Self-Healing & Dual-Agent Consensus)**:
+  - Supports 1, 7, 30, and 90-day projection intervals.
+  - Multi-tier data fallback pipeline: Official DB (>=500 rows) -> Partial DB (<500 rows) -> Live Market Scraper Anchor -> Static Deterministic Anchor.
+  - Model pipeline: Database Champion -> Dynamic Auto-Promotion -> In-Memory Bootstrap Ensemble (Holt ETS damped + Momentum Drift + Dual-Agent Debate).
+  - Strict bounded safety guardrails: max ±2.5% for 1d, ±7% for 7d, ±12% for 30d, ±18% for 90d.
+  - Guaranteed HTTP 200 OK responses with full evaluation metadata, eliminating "ข้อมูลจริงยังไม่พร้อมสำหรับการพยากรณ์".
+- **Historical Data Pipeline & Admin Chart**:
+  - Direct local `price_cache` queries with zero-network deterministic daily baseline fallback anchored on `bar_sell` in 50-THB steps.
+  - Completely decouples `/api/historical` from blocking `yfinance` network calls, achieving <10ms response times.
+  - Fixes 10x spot price calculation bug and -12% hockey-stick distortion.
+  - Admin Chart.js optimization with `maxTicksLimit: 5`, `grace: '8%'`, Thai short date labels (`"10 ก.ย."`), and `.chart-wrapper` responsive container.
+- **Testing & Supervisory**:
+  - Full automated pytest suites verifying endpoints, boundaries, and performance.
+  - Executive supervisory sign-off and detailed milestone conclusions in Thai by Team Lead Zoro.
 
 ---
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | DB Connection Pooling | Thread-safe connection pool using `DBUtils.pooled_db.PooledDB` in `api/database/connection.py` | M1 (DONE) | Survey 1, 3 |
-| 2 | Password Reset Session Revocation | Immediately invalidate all active sessions in `sessions` table on password change | M1 (DONE) | Survey 1, 3 |
-| 3 | Flask-Limiter Rate Limiting | Throttling on `/login`, `/register`, and sensitive auth endpoints | M1 (DONE) | Survey 1, 3 |
-| 4 | Frontend API Standardization | Unify all API calls in `js/config.js` and `js/script.js` to `/api/*` and deprecate legacy PHP scripts | M1 (DONE) | Survey 1 |
-| 5 | Email Verification & Password Reset Endpoints | Implement `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/verify-email`, `/api/auth/resend-verify` in Flask | M2 | Survey 1, 3 |
-| 6 | Responsive HTML Email Delivery & Logging | SMTP HTML email templates with persistent delivery logging in `email_logs` table | M2 | Survey 3 |
-| 7 | Service Worker Push Hardening | Try-catch payload handling, window focus/reuse on notification click in `sw.js` | M2 | Survey 3 |
-| 8 | Scheduled Morning Price Notification | Automated daily morning summary notification in `api/services/scheduler.py` | M2 | Survey 3 |
-| 9 | 7-day & 30-day Forecast Horizons | Support 7-day and 30-day forward forecasts for both Thai Baht gold bar and World Spot gold | M3 | Survey 1, 2 |
-| 10 | Dual-Agent Debate & Consensus | Agent A (technical) and Agent B (macro/FX) adversarial debate when discrepancy > 3% | M3 | Survey 2 |
-| 11 | Strict Min-Max Safety Boundaries | Volatility-scaled dynamic safety bounds ($Z \cdot \sigma \sqrt{h}$) to prevent price drift/hallucinations | M3 | Survey 2 |
-| 12 | Historical Data Exchange Rate Ingestion | Ingest `BahtPerUSD` from GTA historical feeds to populate `usd_thb` and reset freshness gate | M3 | Survey 2 |
-| 13 | Pytest Suite Installation & Setup | Install `pytest` in `.venv` and update `requirements.txt` | M4 | Survey 1, 3 |
-| 14 | Automated Test Suites | Unit and integration pytest suites for auth, alerts, security, and forecasting | M4 | Survey 3 |
-| 15 | Backtesting Validation Engine | Automated walk-forward backtest verifying MAPE < 5% across 7-day and 30-day horizons | M4 | Survey 2 |
-| 16 | Git Remote Synchronization | Stage, commit clean commits, and push to GitHub `DoubleFo20/gold-price-checker` on branch `main` | M5 | Survey 3 |
-| 17 | Team Lead Zoro Supervisory Evaluation in Thai | Review all modules, metrics, and provide executive summary and operational report in Thai | M5 | ORIGINAL_REQUEST |
+| 1 | Restore 30d & 90d UI Options | Add 30-day and 90-day options to `#forecast-period` dropdown in `components/6-forecast.html` | M1 | Survey 1, ORIGINAL_REQUEST R1 |
+| 2 | Expand Supported Periods | Expand `SUPPORTED_PERIODS` to `(1, 7, 30, 90)` in `api/routes/forecast_routes.py` and `api/services/forecast_service.py` | M1 | Survey 1, ORIGINAL_REQUEST R1 |
+| 3 | Extended Error Bounds Interpolation | 3-segment piecewise-linear error bounds (`_interval_errors`) with sqrt(t) scaling for 90d | M1 | Survey 1, ORIGINAL_REQUEST R1 |
+| 4 | 90-Day Evaluation Payload | Implement 90-day evaluation fallback in `_evaluation_payload` to supply valid UI accuracy metrics | M1 | Survey 1, ORIGINAL_REQUEST R1 |
+| 5 | 4-Tier Self-Healing Data Pipeline | Fallback sequence (Official DB -> Partial DB -> Live Scraper -> Static Anchor) guaranteeing data availability | M1 | Survey 2, ORIGINAL_REQUEST R2 |
+| 6 | In-Memory Bootstrap & Guardrails | Holt ETS damped + Momentum Drift ensemble guaranteeing 200 OK and bounds (2.5% 1d, 7% 7d, 12% 30d, 18% 90d) | M1 | Survey 2, ORIGINAL_REQUEST R2 |
+| 7 | Eliminate yfinance from /api/historical | Cut out synchronous external Yahoo Finance network calls, dropping latency from 12s to <10ms | M2 | Survey 3, ORIGINAL_REQUEST R3 |
+| 8 | Fast Local Price Cache & Live Baseline | Serve real Thai gold data from `price_cache` with deterministic live market price baseline fallback | M2 | Survey 3, ORIGINAL_REQUEST R3 |
+| 9 | Fix Historical Data Bugs | Fix 10x world gold spot calculation bug and -12% synthetic hockey-stick jump in `api/services/historical.py` | M2 | Survey 3, ORIGINAL_REQUEST R3 |
+| 10 | Admin 7-Day Chart Crisp Rendering | Set `maxTicksLimit: 5`, `grace: '8%'`, Thai short dates, and wrap `<canvas>` inside `.chart-wrapper` | M2 | Survey 3, ORIGINAL_REQUEST R3 |
+| 11 | Comprehensive Pytest Verification | Execute full automated test suite (`pytest tests/`) ensuring zero regressions | M3 | ORIGINAL_REQUEST R4 |
+| 12 | Team Lead Zoro Thai Supervisory Report | Detailed milestone reports, model stability verification, and executive conclusion in Thai | M3 | ORIGINAL_REQUEST R5 |
 
 ---
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Backend Security & Database Architecture (Agent C) | Rate limiting, session revocation, DB connection pooling, legacy PHP deprecation | None | DONE |
-| M2 | Notifications & Auth Flow Champion (Agent D) | Multi-channel alert dispatch, email verification & password reset flows, sw.js hardening | M1 | IN_PROGRESS |
-| M3 | Forecasting Lead & Adversarial Specialist (Agent A & B) | 7-day & 30-day Thai & World Spot forecasts, dual-agent consensus debate, min-max bounds | M1 | PLANNED |
-| M4 | QA Test & Backtesting Validation (Agent E) | Automated pytest suites, backtesting MAPE < 5% verification | M1, M2, M3 | PLANNED |
-| M5 | GitHub Synchronization & Team Lead Zoro Report (Agent E & Zoro) | Git commit & push to origin/main, Zoro Thai executive report | M4 | PLANNED |
+| M1 | Forecast Engine Restoration & Horizons (Agent A) | F1, F2, F3, F4, F5, F6: UI dropdown, 30d/90d horizons, self-healing fallback, bounded bootstrap, guaranteed 200 OK | None | IN_PROGRESS |
+| M2 | Admin Chart Performance & Real Baseline Data (Agent B) | F7, F8, F9, F10: Eliminate yfinance, <100ms response, fix 10x bug, crisp Admin 7-day chart rendering | None | PLANNED |
+| M3 | E2E Verification & Zoro Thai Sign-off (Agent E & Zoro) | F11, F12: Automated pytest suite validation and Team Lead Zoro comprehensive Thai supervisory sign-off | M1, M2 | PLANNED |
 
 ---
 
 ## Interface Contracts
 
-### Auth ↔ Sessions
-- `change_password(user_id, new_password)`:
-  - Updates `users.password_hash`
-  - Executes `DELETE FROM sessions WHERE user_id = %s`
-  - Clears `session_token` cookie with `secure=_cookie_secure(), httponly=True, samesite="Lax"`
-  - Returns `{ "success": True, "message": "..." }`
-
-### Database Pool ↔ Application
-- `get_db_connection()`:
-  - Returns pooled connection from `DBUtils.pooled_db.PooledDB` using double-checked locking with `expected_key`
-  - Supports context manager or standard `.cursor(pymysql.cursors.DictCursor)` and `.close()`
-
-### Rate Limiting
-- `limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])`
-- `@limiter.limit("5 per minute")` on `/api/auth/login`, `/api/auth/register`, `/api/auth/forgot-password`
-
-### Forecasting Engine ↔ API Routes
-- `get_consensus_forecast(target="thai_bar"|"world_spot", horizon_days=7|30)`:
-  - Output schema:
-    ```json
-    {
-      "target": "thai_bar",
-      "period": 7,
-      "consensus_price": 43500.0,
-      "min_price": 42800.0,
-      "max_price": 44200.0,
-      "agent_a_prediction": 43400.0,
-      "agent_b_prediction": 43650.0,
-      "discrepancy_pct": 0.57,
-      "debate_triggered": false,
-      "confidence_rating": "high",
-      "consensus_weights": {"agent_a": 0.5, "agent_b": 0.5},
+### Forecast API Contract
+- Route: `GET /api/forecast?period={1|7|30|90}&model={optional}&hist_days={optional}`
+- Status: Guaranteed `200 OK`
+- Output Schema:
+  ```json
+  {
+    "target": "thai_bar",
+    "period": 90,
+    "model": "champion_or_bootstrap",
+    "labels": ["..."],
+    "history": [50400.0, "..."],
+    "forecast": [50500.0, "..."],
+    "upper_bound": [51200.0, "..."],
+    "lower_bound": [49800.0, "..."],
+    "summary": {
+      "current_price": 50400.0,
+      "forecast_price": 50500.0,
+      "change": 100.0,
+      "change_pct": 0.20,
+      "direction": "up"
+    },
+    "dual_agent_consensus": {
+      "consensus_price": 50500.0,
+      "agent_a_prediction": 50480.0,
+      "agent_b_prediction": 50520.0,
+      "discrepancy_pct": 0.08,
       "bounds_applied": true
+    },
+    "evaluation": {
+      "mae": 150.0,
+      "rmse": 180.0,
+      "mape": 0.35,
+      "direction_accuracy": 72.0
     }
-    ```
+  }
+  ```
+
+### Historical Data API Contract
+- Route: `GET /api/historical?days={days}`
+- Status: Guaranteed `200 OK` (latency < 100ms)
+- Output Schema:
+  ```json
+  {
+    "days": 7,
+    "source": "Gold Traders Association" | "Live Market Baseline",
+    "labels": ["4 ก.ย.", "5 ก.ย.", "6 ก.ย.", "7 ก.ย.", "8 ก.ย.", "9 ก.ย.", "10 ก.ย."],
+    "values": [50350.0, 50400.0, 50400.0, 50450.0, 50500.0, 50450.0, 50400.0],
+    "world_gold_usd": [2550.0, 2552.0, 2552.0, 2555.0, 2558.0, 2556.0, 2554.0]
+  }
+  ```
 
 ---
 
-## Code Layout
-- `api/app/create_app.py`: Flask application factory, blueprint registration, Flask-Limiter init
-- `api/database/connection.py`: Pooled connection manager (`PooledDB`)
-- `api/routes/auth_routes.py`: Auth endpoints, login, register, password change, reset, verify
-- `api/routes/forecast_routes.py`: Forecast endpoints supporting 7 and 30-day horizons
-- `api/services/forecast_service.py`: Forecasting coordination and model loader
-- `api/services/forecast_debate.py`: Dual-agent consensus debate & min-max bounds engine
-- `api/services/email_service.py`: SMTP delivery, HTML templates, and `email_logs` tracking
-- `api/services/scheduler.py`: Scheduled jobs (price fetch, morning summaries, alert checks)
-- `sw.js`: Service worker for web push
-- `js/config.js`: Unified API endpoints configuration
-- `tests/`: Automated pytest suites
+## Code Layout & Write Ownership
+- **Milestone 1 (Agent A)**:
+  - `components/6-forecast.html` (Exclusive write)
+  - `api/routes/forecast_routes.py` (Exclusive write)
+  - `api/services/forecast_service.py` (Exclusive write)
+  - `tests/e2e/test_tier2_boundaries.py` (Exclusive write for test_b09 update)
+- **Milestone 2 (Agent B)**:
+  - `api/services/historical.py` (Exclusive write)
+  - `api/routes/prices.py` (Exclusive write)
+  - `admin/js/admin.js` (Exclusive write)
+  - `admin/css/admin.css` (Exclusive write)
+  - `admin/index.html` (Exclusive write)
+  - `tests/test_historical_api.py` (Exclusive write)

@@ -468,12 +468,43 @@ class TestBoundary09_ForecastHorizons7And30Days:
         assert "จำนวนเต็ม" in res.get_json().get("error", "")
 
     def test_b09_insufficient_historical_data_returns_503(self, client, mock_db):
-        """If historical price data has < 500 points, forecast returns 503."""
+        """If historical price data has < 500 points, forecast returns 200 OK via bootstrap fallback."""
         mock_db.price_cache = mock_db.price_cache[:100]  # Only 100 days
         res = client.get("/api/forecast?period=7")
-        assert res.status_code == 503
+        assert res.status_code == 200
         data = res.get_json()
-        assert data.get("forecast_ready") is False
+        assert len(data.get("forecast")) == 7
+        assert len(data.get("upper_bound")) == 7
+        assert len(data.get("lower_bound")) == 7
+        assert data.get("summary") is not None
+
+    def test_b09_forecast_period_30_and_90_return_200(self, client, mock_db):
+        """30-day and 90-day periods return 200 with matching forecast lengths, guardrails, and metrics."""
+        for p, expected_max_pct in ((30, 0.12), (90, 0.18)):
+            res = client.get(f"/api/forecast?period={p}")
+            assert res.status_code == 200
+            data = res.get_json()
+            assert len(data.get("forecast")) == p
+            assert len(data.get("upper_bound")) == p
+            assert len(data.get("lower_bound")) == p
+            assert data.get("period") == p
+
+            # Check guardrails
+            guardrails = data.get("dual_agent_consensus", {}).get("guardrails", {})
+            origin = float(data.get("history")[-1])
+            expected_min = origin * (1.0 - expected_max_pct)
+            expected_max = origin * (1.0 + expected_max_pct)
+            assert guardrails.get("strict_min_bound") == pytest.approx(expected_min, rel=1e-2)
+            assert guardrails.get("strict_max_bound") == pytest.approx(expected_max, rel=1e-2)
+
+            for low, fc, up in zip(data["lower_bound"], data["forecast"], data["upper_bound"]):
+                assert 0 <= low <= fc <= up
+                assert guardrails["strict_min_bound"] <= fc <= guardrails["strict_max_bound"]
+
+            # Evaluation metrics must be populated
+            assert data.get("evaluation") is not None
+            assert data["evaluation"].get("mae_baht") is not None
+            assert data["evaluation"].get("direction_accuracy_pct") is not None
 
     def test_b09_extreme_hist_days_parameter(self, client, mock_db):
         """Extreme hist_days values are parsed without crash."""

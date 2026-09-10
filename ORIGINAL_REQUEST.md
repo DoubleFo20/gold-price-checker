@@ -70,3 +70,52 @@ Integrity mode: development
 - [ ] All test suites pass 100% without failures.
 - [ ] All commits are pushed to remote GitHub repository DoubleFo20/gold-price-checker on main.
 - [ ] Final evaluation and milestone walkthrough is provided in Thai by Team Lead Zoro.
+
+## 2026-09-09T21:50:57Z
+
+# Teamwork Project Prompt — Forecast Engine Restoration & Admin Chart Optimization
+
+> Status: Launched — Executing via Teamwork Multi-Agent System
+> Goal: Fix forecasting failure, restore 1, 7, 30, 90-day horizons, resolve "ข้อมูลจริงยังไม่พร้อม" error with reliable auto-fallback, and eliminate distorted/slow Yahoo Finance dependency from Admin chart.
+> Requested team: Team Lead Zoro, Agent A (Forecasting & Statistics Engineer), Agent B (Data Pipeline & API Performance Specialist)
+
+Fix the production forecasting failure ("ข้อมูลจริงยังไม่พร้อมสำหรับการพยากรณ์"), restore the missing 30-day and 90-day forecast horizons across UI and backend, and eliminate the slow, distorted Yahoo Finance data fetch from the Admin dashboard chart by switching to fast local DB and clean real-price baseline data.
+
+Working directory: `d:\xampp\htdocs\gold-price-checker`
+Integrity mode: development
+
+## Requirements
+
+### R1. Restore 30-Day and 90-Day Forecast Horizons
+- In `components/6-forecast.html`, add `<option value="30">30 วัน (1 เดือน)</option>` and `<option value="90">90 วัน (3 เดือน)</option>` to the `#forecast-period` dropdown alongside 1 and 7 days.
+- In `api/routes/forecast_routes.py` and `api/services/forecast_service.py`, expand `SUPPORTED_PERIODS` from `(1, 7, 30)` to `(1, 7, 30, 90)`.
+- Configure error bounds (`_interval_errors`) and evaluation payload (`_evaluation_payload`) to handle 90-day projection intervals smoothly.
+
+### R2. Resolve "ข้อมูลจริงยังไม่พร้อมสำหรับการพยากรณ์" (Self-Healing Production Fallback)
+- Root cause: On production/Render, if `price_cache` has fewer than 500 verified rows or `forecast_model_metrics` lacks a selected champion, `ForecastUnavailableError` is raised, throwing HTTP 503 and blocking users.
+- Add an autonomous fallback/bootstrap mechanism:
+  - If official verified champion data is ready in DB, use it.
+  - If official champion or 500 rows are not ready in DB, automatically bootstrap forecasting using all available historical price points or the current live market price with Holt ETS / ARIMA / Momentum drift models.
+  - Ensure `/api/forecast` **always returns 200 OK** with realistic, bounded price forecasts (max 2.5% for 1d, 7% for 7d, 12% for 30d, 18% for 90d) and evaluation metadata, never crashing or displaying the "ข้อมูลจริงยังไม่พร้อม" alert.
+
+### R3. Remove / Fix Distorted Yahoo Finance Fetch in Admin Chart
+- Cut out synchronous external Yahoo Finance (`yfinance`) calls from `/api/historical` for the Admin chart to avoid 12-second latency and distorted data.
+- Ensure `/api/historical` immediately serves real Thai gold data from `price_cache` or a clean daily baseline anchored on the live market price (`bar_sell`), responding in < 100ms.
+- Ensure the Admin 7-day chart renders crisp, realistic gold prices with proper labels (no dense empty grid lines).
+
+## Acceptance Criteria
+
+### Forecasting Reliability & Options
+- [ ] `#forecast-period` dropdown contains 1 day, 7 days, 30 days (1 month), and 90 days (3 months).
+- [ ] `/api/forecast?period=30` and `/api/forecast?period=90` return valid JSON with `forecast`, `upper_bound`, `lower_bound`, and `evaluation` data.
+- [ ] When testing without 500 verified DB rows, the forecast endpoint still returns 200 OK with valid predictions instead of HTTP 503 error.
+- [ ] Clicking "สร้างการพยากรณ์" on the frontend displays results, chart, and metrics for all 4 periods without popup errors.
+
+### Admin Chart & Performance
+- [ ] `/api/historical?days=7` responds in under 200ms without depending on blocking Yahoo Finance network calls.
+- [ ] Admin dashboard chart renders clean 7-day price trends without distorted grids or missing lines.
+- [ ] All automated tests pass (`pytest tests/`).
+
+---
+*Next: when approved → delegate via invoke_subagent (see Delegation Protocol)*
+

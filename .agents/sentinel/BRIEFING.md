@@ -1,13 +1,14 @@
-# BRIEFING — 2026-09-09T23:19:00+07:00
+# BRIEFING — 2026-09-10T04:52:00+07:00
 
 ## Mission
-Route full-stack gold price checker production readiness to project orchestrator, monitor progress via crons, and verify completion with victory auditor.
+Route forecast engine restoration and admin chart optimization to project orchestrator, monitor progress via crons, and verify completion with victory auditor.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:\xampp\htdocs\gold-price-checker\.agents\sentinel
 - Orchestrator: b27663b6-ac2e-4f79-8551-0b5b380bfa7d
 - Victory Auditor: to be spawned on victory claim
+- Orchestrator (Run 2): a0b2a93e-c5e3-4950-9ca4-725e4366883a
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
@@ -16,16 +17,16 @@ Route full-stack gold price checker production readiness to project orchestrator
 - Keep context ultra-light
 
 ## User Context
-- **Last user request**: Complete full-stack Gold Price Checker system (gold-price-checker) to 100% production readiness.
+- **Last user request**: Fix forecasting failure ("ข้อมูลจริงยังไม่พร้อมสำหรับการพยากรณ์"), restore 1, 7, 30, 90-day horizons, resolve error with reliable auto-fallback, and eliminate distorted/slow Yahoo Finance dependency from Admin chart.
 - **Pending clarifications**: none
-- **Delivered results**: none
+- **Delivered results**: Previous production readiness pass; now addressing forecast engine restoration and admin chart optimization.
 
 ## Project Status
-- **Phase**: in progress (Milestone 1 PASSED & SIGNED OFF; Milestone 2 ACTIVE)
-- **Active Subagents**: worker_m2 (Agent D: Notifications & Auth Flows)
+- **Phase**: in progress
 - **Route**: General (teamwork_preview_orchestrator)
-- **Cron 1 (Reporting, */8 * * * *)**: task-18
-- **Cron 2 (Liveness, */10 * * * *)**: task-20
+- **Active Subagents**: teamwork_preview_orchestrator (a0b2a93e-c5e3-4950-9ca4-725e4366883a)
+- **Cron 1 (Reporting, */8 * * * *)**: task-32
+- **Cron 2 (Liveness, */10 * * * *)**: task-34
 
 ## Victory Audit Status
 - **Triggered**: no
@@ -34,6 +35,4 @@ Route full-stack gold price checker production readiness to project orchestrator
 
 ## Artifact Index
 - d:\xampp\htdocs\gold-price-checker\.agents\ORIGINAL_REQUEST.md — Authoritative user request
-- d:\xampp\htdocs\gold-price-checker\.agents\orchestrator_1 — Orchestrator workspace
-- d:\xampp\htdocs\gold-price-checker\TEST_INFRA.md — E2E Test Infrastructure
-- d:\xampp\htdocs\gold-price-checker\TEST_READY.md — E2E Test Suite Validation Report
+- d:\xampp\htdocs\gold-price-checker\.agents\orchestrator_2 — Orchestrator workspace (Run 2)

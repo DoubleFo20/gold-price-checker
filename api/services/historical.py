@@ -109,12 +109,12 @@ def build_series_with_world_from_yfinance(days=365):
 def build_historical_gold_data_free(days=365):
     from services.gold_price import thai_cache
     db_labels, db_values = build_series_from_db(days)
-    if db_labels and db_values:
+    if db_labels and db_values and len(db_values) >= days:
         return db_labels, db_values
 
     current_thb = 41500.0
     try:
-        if thai_cache["data"] and thai_cache["data"].get("bar_sell"):
+        if thai_cache.get("data") and thai_cache["data"].get("bar_sell"):
             current_thb = float(thai_cache["data"]["bar_sell"])
             print(f"Using real Thai market price for synthetic data: {current_thb}")
     except Exception as e:

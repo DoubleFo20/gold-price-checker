@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 from services.gold_price import refresh_thai_cache, refresh_world_cache, thai_cache, world_cache
 from services.historical import (
     historical_cache, intraday_cache, HAVE_YFINANCE,
-    build_series_with_world_from_yfinance, build_historical_gold_data_free,
+    build_series_from_db, build_historical_gold_data_free,
     _build_intraday_fallback_payload,
 )
 from services.scheduler import save_daily_price
@@ -104,15 +104,18 @@ def api_historical():
                 return jsonify(entry["data"])
                 
         source = ""
-        try:
-            labels, thai_values, world_values = build_series_with_world_from_yfinance(days=days)
-            source = "Yahoo Finance"
-        except Exception:
+        db_labels, db_values = build_series_from_db(days=days)
+        if db_labels and db_values and len(db_values) >= days:
+            labels = db_labels
+            thai_values = db_values
+            source = "Local Database"
+        else:
             labels, thai_values = build_historical_gold_data_free(days=days)
-            usdthb = get_usdthb()
-            factor = usdthb * (15.244 / 31.1035)
-            world_values = [v / factor if factor else 0 for v in thai_values]
             source = "Fallback"
+
+        usdthb = (world_cache.get("data") or {}).get("usdthb") or 36.85
+        factor = usdthb * (15.244 / 31.1035) * 0.965
+        world_values = [round(v / factor, 2) if factor else 0 for v in thai_values]
         data = {
             "labels": labels,
             "thai_values": [round(v, 2) for v in thai_values],

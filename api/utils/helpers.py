@@ -29,17 +29,28 @@ def normalize_prices(d: dict):
     return d
 
 
+_usdthb_cache = {"rate": 36.85, "ts": 0}
+
+
 def get_usdthb():
+    import time
+    now = time.time()
+    if _usdthb_cache["rate"] and now - _usdthb_cache["ts"] < 300:
+        return _usdthb_cache["rate"]
     try:
         r = requests.get(
             "https://api.exchangerate.host/latest",
             params={"base": "USD", "symbols": "THB"},
-            timeout=10,
+            timeout=2,
         )
         r.raise_for_status()
-        return float(r.json()["rates"]["THB"])
+        rate = float(r.json()["rates"]["THB"])
+        _usdthb_cache["rate"] = rate
+        _usdthb_cache["ts"] = now
+        return rate
     except Exception:
-        return 36.85
+        _usdthb_cache["ts"] = now
+        return _usdthb_cache["rate"] or 36.85
 
 
 def _cookie_secure() -> bool:
