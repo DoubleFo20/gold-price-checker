@@ -130,23 +130,17 @@
                 </div>
             </div>
 
-            <!-- Charts + table row -->
-            <div class="dash-grid">
-                <div class="card chart-card">
-                    <div class="card-head">
-                        <h3>Thai Gold Price — 7 Days</h3>
-                        <span class="card-tag" id="chart-source">Loading...</span>
+            <!-- Live Price Board (Realtime) -->
+            <div class="card">
+                <div class="card-head flex-between">
+                    <div>
+                        <h3><i class="fas fa-coins text-gold mr-2"></i> ราคาทองคำล่าสุด ณ ตอนนี้ (Price Right Now)</h3>
+                        <p class="text-sub">ราคาทองคำแท่งและทองรูปพรรณ Real-time ตามประกาศสมาคมค้าทองคำแห่งประเทศไทย</p>
                     </div>
-                    <canvas id="dash-chart" height="220"></canvas>
+                    <button class="btn btn-gold" id="btn-fetch-price"><i class="fas fa-sync-alt"></i> ดึงราคา Realtime</button>
                 </div>
-                <div class="card">
-                    <div class="card-head">
-                        <h3>Price Right Now</h3>
-                        <button class="btn-xs btn-outline" id="btn-fetch-price"><i class="fas fa-sync-alt"></i> Fetch</button>
-                    </div>
-                    <div class="price-live-grid" id="price-live-grid">
-                        <div class="loading-msg">กำลังดึงราคา...</div>
-                    </div>
+                <div class="price-live-grid lg" id="price-live-grid">
+                    <div class="loading-msg">กำลังดึงราคา...</div>
                 </div>
             </div>
         </section>

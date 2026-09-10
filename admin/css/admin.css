@@ -354,7 +354,7 @@ body {
   gap: 14px;
   padding: 20px;
 }
-.price-live-grid.lg { grid-template-columns: repeat(3, 1fr); }
+.price-live-grid.lg { grid-template-columns: repeat(4, 1fr); }
 
 .price-tile {
   background: var(--bg-hover);
@@ -486,6 +486,7 @@ body {
 
 @media (max-width: 1100px) {
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .price-live-grid.lg { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 900px) {
   .dash-grid { grid-template-columns: 1fr; }
@@ -495,6 +496,7 @@ body {
   .sidebar.open { transform: translateX(0); }
   .topbar-toggle { display: block; }
   .kpi-row { grid-template-columns: 1fr 1fr; }
+  .price-live-grid.lg { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .kpi-row { grid-template-columns: 1fr; }

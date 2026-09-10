@@ -12,7 +12,6 @@ const API = {
     news:         '/api/news',
 };
 
-let dashChart = null;
 let usersList = [];
 
 // Initialize theme immediately to prevent flashing
@@ -44,9 +43,6 @@ function setupTheme() {
             const next = current === 'dark' ? 'light' : 'dark';
             applyTheme(next);
             localStorage.setItem('gold_admin_theme', next);
-            if (dashChart) {
-                loadDashChart(); // Re-render chart with updated theme colors
-            }
         });
     }
 }
@@ -163,7 +159,6 @@ async function loadDashboard() {
     loadThaiPrice();
     loadWorldPrice();
     loadAdminStats();
-    loadDashChart();
 }
 
 async function loadThaiPrice() {
@@ -224,84 +219,6 @@ async function loadAdminStats() {
         document.getElementById('kv-status').textContent = 'API Offline';
         document.getElementById('kv-status').classList.replace('green-text', 'red-text');
     }
-}
-
-async function loadDashChart() {
-    try {
-        const res  = await fetch('/api/historical?days=7');
-        const data = await res.json();
-        document.getElementById('chart-source').textContent = data.source || 'Historical';
-        const canvas = document.getElementById('dash-chart');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (dashChart) dashChart.destroy();
-
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.05)';
-        const tickColor = isDark ? '#94a3b8' : '#64748b';
-
-        // Luxury Gold vertical gradient
-        const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-        gradient.addColorStop(0, isDark ? 'rgba(212, 175, 55, 0.32)' : 'rgba(212, 168, 67, 0.25)');
-        gradient.addColorStop(0.65, isDark ? 'rgba(212, 175, 55, 0.08)' : 'rgba(212, 168, 67, 0.06)');
-        gradient.addColorStop(1, 'rgba(212, 175, 55, 0.0)');
-
-        dashChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.labels || [],
-                datasets: [{
-                    label: 'ราคาทองแท่ง (THB)',
-                    data: data.thai_values || [],
-                    borderColor: '#d4a843',
-                    backgroundColor: gradient,
-                    borderWidth: 2.5,
-                    tension: 0.38,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#d4a843',
-                    pointBorderColor: isDark ? '#121622' : '#ffffff',
-                    pointBorderWidth: 2,
-                    pointHoverRadius: 6,
-                    fill: true,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: isDark ? 'rgba(18, 22, 34, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                        titleColor: isDark ? '#f8fafc' : '#0f172a',
-                        bodyColor: '#d4a843',
-                        borderColor: isDark ? 'rgba(212, 175, 55, 0.35)' : 'rgba(212, 175, 55, 0.45)',
-                        borderWidth: 1,
-                        padding: 10,
-                        boxPadding: 4,
-                        callbacks: {
-                            label: function(context) {
-                                return ` ราคาทองคำ: ฿${Number(context.parsed.y).toLocaleString()}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: tickColor, font: { size: 11 } },
-                        grid: { color: gridColor, drawBorder: false }
-                    },
-                    y: {
-                        ticks: {
-                            color: tickColor,
-                            font: { size: 11 },
-                            callback: v => `฿${v.toLocaleString()}`
-                        },
-                        grid: { color: gridColor, drawBorder: false }
-                    }
-                }
-            }
-        });
-    } catch(e) { document.getElementById('chart-source').textContent = 'Error loading chart'; }
 }
 
 /* ===========================
