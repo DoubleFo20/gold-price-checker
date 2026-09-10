@@ -8,17 +8,12 @@ from flask import Blueprint, jsonify, request
 
 from services.gold_price import refresh_thai_cache, refresh_world_cache, thai_cache, world_cache
 from services.historical import (
-    historical_cache, intraday_cache, HAVE_YFINANCE,
+    historical_cache, intraday_cache,
     build_series_from_db, build_historical_gold_data_free,
     _build_intraday_fallback_payload,
 )
 from services.scheduler import save_daily_price
 from utils.helpers import to_float, get_usdthb
-
-try:
-    import yfinance as yf
-except ImportError:
-    yf = None
 
 CACHE_DURATION = 300
 news_cache = {}
@@ -92,7 +87,12 @@ def api_thai():
 @prices_bp.route("/api/historical")
 def api_historical():
     try:
-        days = int(request.args.get("days", 365))
+        raw_days = request.args.get("days", 365)
+        try:
+            days = int(raw_days)
+        except (ValueError, TypeError):
+            return jsonify({"error": "พารามิเตอร์ days ต้องเป็นตัวเลขจำนวนเต็ม"}), 400
+
         days = max(7, min(days, 365))
         now = time.time()
         today = datetime.now().date().isoformat()
@@ -110,7 +110,7 @@ def api_historical():
             thai_values = db_values
             source = "Local Database"
         else:
-            labels, thai_values = build_historical_gold_data_free(days=days)
+            labels, thai_values = build_historical_gold_data_free(days=days, db_series=(db_labels, db_values))
             source = "Fallback"
 
         usdthb = (world_cache.get("data") or {}).get("usdthb") or 36.85

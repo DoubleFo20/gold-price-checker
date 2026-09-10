@@ -106,9 +106,13 @@ def build_series_with_world_from_yfinance(days=365):
     return labels, values_thb, values_usd
 
 
-def build_historical_gold_data_free(days=365):
+def build_historical_gold_data_free(days=365, db_series=None):
     from services.gold_price import thai_cache
-    db_labels, db_values = build_series_from_db(days)
+    if db_series is not None:
+        db_labels, db_values = db_series
+    else:
+        db_labels, db_values = build_series_from_db(days)
+
     if db_labels and db_values and len(db_values) >= days:
         return db_labels, db_values
 
@@ -122,15 +126,22 @@ def build_historical_gold_data_free(days=365):
 
     labels, values = [], []
     random.seed(42)
-    price = current_thb * 0.88
-    daily_volatility = current_thb * 0.006
+    # Scale starting offset and volatility smoothly based on the horizon (days)
+    # so a 7-day chart renders a crisp, realistic line without artificial 12% cliffs
+    horizon_factor = min(1.0, max(days, 1) / 365.0)
+    start_ratio = max(0.88, 1.0 - (0.12 * horizon_factor))
+    daily_volatility = current_thb * (0.002 if days <= 7 else 0.006)
+    min_allowed = current_thb * max(0.75, 1.0 - (0.25 * horizon_factor))
+    max_allowed = current_thb * min(1.05, 1.0 + (0.05 * horizon_factor))
+
+    price = current_thb * start_ratio
     for i in range(days):
         day = (datetime.now().date() - timedelta(days=days - 1 - i)).isoformat()
         days_remaining = days - i
         mean_reversion = (current_thb - price) / days_remaining * 0.8 if days_remaining > 0 else 0
         random_shock = random.gauss(0, daily_volatility)
         drift = mean_reversion + random_shock
-        price = max(current_thb * 0.75, min(current_thb * 1.05, price + drift))
+        price = max(min_allowed, min(max_allowed, price + drift))
         labels.append(day)
         values.append(round(price, 2))
     if values:
