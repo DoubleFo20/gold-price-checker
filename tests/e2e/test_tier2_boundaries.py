@@ -503,6 +503,19 @@ class TestBoundary09_ForecastHorizons7And30Days:
 
             # Evaluation metrics must be populated
             assert data.get("evaluation") is not None
+            assert data.get("evaluation", {}).get("direction_accuracy_pct", 0) >= 50.0
+
+    def test_b09_forecast_prices_are_dynamic_not_flat(self, client, mock_db):
+        """Forecast prices across 7, 30, and 90 days must be dynamic and not all identical."""
+        for p in (7, 30, 90):
+            res = client.get(f"/api/forecast?period={p}")
+            assert res.status_code == 200
+            data = res.get_json()
+            fc = data.get("forecast")
+            assert len(set(fc)) > 1, f"Forecast for period {p} was completely flat: {fc}"
+            assert data.get("summary", {}).get("min") != data.get("summary", {}).get("max")
+            assert data.get("evaluation", {}).get("direction_accuracy_pct", 0) >= 50.0
+
             assert data["evaluation"].get("mae_baht") is not None
             assert data["evaluation"].get("direction_accuracy_pct") is not None
 
