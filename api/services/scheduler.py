@@ -26,7 +26,12 @@ def save_daily_price():
         if not thai_data or not thai_data.get("bar_sell"):
             return
         source_note = str(thai_data.get("source_note") or "Unknown").strip()
-        is_official = source_note.upper().startswith("GTA") or "GOLD TRADERS ASSOCIATION" in source_note.upper()
+        is_official = (
+            source_note.upper().startswith("GTA")
+            or "GOLD TRADERS ASSOCIATION" in source_note.upper()
+            or "THONGKAM" in source_note.upper()
+            or "สมาคม" in source_note
+        )
         stored_source = OFFICIAL_SOURCE if is_official else source_note[:100]
         quality_status = "verified" if is_official else "unverified"
         today = datetime.now().date()
