@@ -1470,56 +1470,28 @@ function renderForecastChart(payload) {
         forecastData[totalLen - forecastLen + i] = payload.forecast[i];
     }
 
-    // Build confidence band data (upper/lower)
-    const upperData = new Array(totalLen).fill(null);
-    const lowerData = new Array(totalLen).fill(null);
-    if (payload.upper_bound && payload.lower_bound) {
-        for (let i = 0; i < forecastLen; i++) {
-            upperData[totalLen - forecastLen + i] = payload.upper_bound[i];
-            lowerData[totalLen - forecastLen + i] = payload.lower_bound[i];
-        }
-    }
-
     const datasets = [
         {
             label: 'ราคาจริง (ย้อนหลัง)',
             data: histData,
-            borderColor: '#999',
+            borderColor: '#94a3b8',
             backgroundColor: 'rgba(0,0,0,0)',
-            borderWidth: 1.5,
+            borderWidth: 2,
             pointRadius: 0,
             tension: 0.1
         },
         {
-            label: `คาดการณ์ (${payload.model || 'AI'})`,
+            label: `แนวโน้มคาดการณ์ (${payload.model || 'AI Champion'})`,
             data: forecastData,
             borderColor: '#d4af37',
-            backgroundColor: 'rgba(212,175,55,0.15)',
-            borderWidth: 2.5,
-            pointRadius: 0,
-            borderDash: [6, 4],
-            tension: 0.15
-        },
-        {
-            label: 'ขอบบน (ช่วงคาดการณ์ 90%)',
-            data: upperData,
-            borderColor: 'rgba(212,175,55,0.4)',
-            backgroundColor: 'rgba(0,0,0,0)',
-            borderWidth: 1,
-            borderDash: [3, 3],
-            pointRadius: 0,
-            fill: false,
-            tension: 0.15
-        },
-        {
-            label: 'ขอบล่าง (ช่วงคาดการณ์ 90%)',
-            data: lowerData,
-            borderColor: 'rgba(212,175,55,0.4)',
             backgroundColor: 'rgba(212,175,55,0.08)',
-            borderWidth: 1,
-            borderDash: [3, 3],
-            pointRadius: 0,
-            fill: '-1',  // Fill between this and the previous dataset (upper)
+            borderWidth: 2.5,
+            pointRadius: (ctx) => (ctx.dataIndex === totalLen - 1 ? 6 : 0),
+            pointHoverRadius: 8,
+            pointBackgroundColor: '#d4af37',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            borderDash: [5, 5],
             tension: 0.15
         }
     ];
@@ -1578,6 +1550,20 @@ function renderForecastChart(payload) {
 
     // Update summary display
     const fmt = v => Number(v).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+    const terminalTarget = payload.summary?.terminal_target || (payload.forecast && payload.forecast[payload.forecast.length - 1]);
+    const targetEl = document.getElementById('terminal-target-display');
+    if (targetEl && terminalTarget != null) {
+        targetEl.textContent = `฿${fmt(terminalTarget)}`;
+    }
+    const changeEl = document.getElementById('target-change-display');
+    if (changeEl && payload.summary?.expected_change != null) {
+        const chg = payload.summary.expected_change;
+        const pct = payload.summary.expected_change_pct;
+        const sign = chg > 0 ? '+' : '';
+        const color = chg > 0 ? '#28a745' : (chg < 0 ? '#dc3545' : '#888');
+        changeEl.textContent = `${sign}฿${fmt(chg)} (${sign}${pct}%)`;
+        changeEl.style.color = color;
+    }
     document.getElementById('trend-indicator')?.replaceChildren(document.createTextNode(payload.summary.trend));
     document.getElementById('max-price')?.replaceChildren(document.createTextNode(`฿${fmt(payload.summary.max)} `));
     document.getElementById('min-price')?.replaceChildren(document.createTextNode(`฿${fmt(payload.summary.min)} `));
@@ -1626,17 +1612,49 @@ async function generateForecast() {
 
         renderForecastChart(payload);
 
-        // [เพิ่ม] อัปเดตข้อมูลสรุปเพิ่มเติม
-        document.getElementById('model-used-display').textContent = payload.model || 'N/A';
-        document.getElementById('data-source-display').textContent = payload.summary.source || 'N/A';
-        document.getElementById('forecast-observations').textContent = payload.data_quality?.observations ?? '--';
-        document.getElementById('trained-through-display').textContent = payload.trained_through || '--';
+        // [เพิ่ม] อัปเดตข้อมูลสรุปแบบ Minimalist Hero Card
+        const summary = payload.summary || {};
+        const modelEl = document.getElementById('model-used-display');
+        if (modelEl) modelEl.textContent = payload.model || 'AI Champion';
+        const srcEl = document.getElementById('data-source-display');
+        if (srcEl) srcEl.textContent = summary.source || 'N/A';
+        const obsEl = document.getElementById('forecast-observations');
+        if (obsEl) obsEl.textContent = payload.data_quality?.observations ?? '--';
+        const trainEl = document.getElementById('trained-through-display');
+        if (trainEl) trainEl.textContent = payload.trained_through || '--';
+
+        const terminalEl = document.getElementById('terminal-target-display');
+        const changeEl = document.getElementById('target-change-display');
+        const terminalPrice = summary.terminal_target != null 
+            ? summary.terminal_target 
+            : (payload.forecast && payload.forecast.length ? payload.forecast[payload.forecast.length - 1] : null);
+
+        if (terminalEl) {
+            terminalEl.textContent = terminalPrice ? `฿${Number(terminalPrice).toLocaleString()}` : '--';
+        }
+
+        if (changeEl) {
+            const expChange = summary.expected_change ?? (terminalPrice && payload.history?.length ? terminalPrice - payload.history[payload.history.length - 1] : 0);
+            const expPct = summary.expected_change_pct ?? (payload.history?.length ? (expChange / payload.history[payload.history.length - 1]) * 100 : 0);
+            const sign = expChange > 0 ? '+' : '';
+            const color = expChange > 0 ? '#10b981' : (expChange < 0 ? '#ef4444' : '#888888');
+            const icon = expChange > 0 ? '▲' : (expChange < 0 ? '▼' : '►');
+            changeEl.innerHTML = `<span style="color: ${color}; font-weight: 600;">${icon} ${sign}${Number(expChange).toLocaleString()} บาท (${sign}${Number(expPct).toFixed(2)}%)</span>`;
+        }
+
         const trendDisplay = document.getElementById('trend-indicator');
-        if (trendDisplay) trendDisplay.textContent = payload.summary.trend || '--';
+        if (trendDisplay) {
+            const trend = summary.trend || '--';
+            const isUp = trend.includes('ขึ้น');
+            const isDown = trend.includes('ลง');
+            trendDisplay.textContent = trend;
+            trendDisplay.style.color = isUp ? '#10b981' : (isDown ? '#ef4444' : '#e2e8f0');
+        }
+
         const maxDisplay = document.getElementById('max-price');
-        if (maxDisplay) maxDisplay.textContent = payload.summary.max ? Number(payload.summary.max).toLocaleString() : '--';
+        if (maxDisplay) maxDisplay.textContent = summary.max ? `฿${Number(summary.max).toLocaleString()}` : '--';
         const minDisplay = document.getElementById('min-price');
-        if (minDisplay) minDisplay.textContent = payload.summary.min ? Number(payload.summary.min).toLocaleString() : '--';
+        if (minDisplay) minDisplay.textContent = summary.min ? `฿${Number(summary.min).toLocaleString()}` : '--';
         const maeDisplay = document.getElementById('forecast-mae');
         if (maeDisplay) maeDisplay.textContent = payload.evaluation?.mae_baht == null ? '--' : `฿${Number(payload.evaluation.mae_baht).toLocaleString()}`;
         const directionDisplay = document.getElementById('direction-accuracy');

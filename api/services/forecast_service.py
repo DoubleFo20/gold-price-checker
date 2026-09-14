@@ -445,14 +445,7 @@ def get_forecast(period: int = 7, model_name: str = "champion", hist_days: int =
     terminal_target = float(predictions[-1])
     expected_change = round(terminal_target - last_actual, 2)
     expected_change_pct = round((expected_change / max(last_actual, 1.0)) * 100.0, 2)
-
-    pct_change = abs(expected_change) / max(last_actual, 1.0) * 100.0
-    if pct_change < 0.10:
-        trend_text = "แกว่งตัวในกรอบ (Sideways)"
-    elif expected_change > 0:
-        trend_text = "ขาขึ้น"
-    else:
-        trend_text = "ขาลง"
+    trend_text = "ขาขึ้น" if expected_change >= 0 else "ขาลง"
 
     return {
         "labels": labels[-30:] + future_labels,

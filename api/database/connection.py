@@ -37,12 +37,11 @@ def _get_connection_config():
     database = os.getenv("DB_NAME")
     port = int(os.getenv("DB_PORT", 3306))
 
-    connect_timeout = int(os.getenv("DB_CONNECT_TIMEOUT", 3))
-    read_timeout = int(os.getenv("DB_READ_TIMEOUT", 5))
-    connect_options = {
-        "connect_timeout": connect_timeout,
-        "read_timeout": read_timeout,
-    }
+    connect_options = {}
+    if os.getenv("DB_CONNECT_TIMEOUT"):
+        connect_options["connect_timeout"] = int(os.getenv("DB_CONNECT_TIMEOUT"))
+    if os.getenv("DB_READ_TIMEOUT"):
+        connect_options["read_timeout"] = int(os.getenv("DB_READ_TIMEOUT"))
     ssl_ca = (os.getenv("DB_SSL_CA") or "").strip()
     if ssl_ca:
         connect_options["ssl"] = {"ca": ssl_ca, "check_hostname": True}
