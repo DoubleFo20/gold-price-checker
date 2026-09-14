@@ -434,15 +434,18 @@ def refresh_thai_cache(force=False):
                 data["today_change"] = 0
         return data
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(scrapers)) as executor:
-        future_to_fn = {executor.submit(run_scraper, fn): fn.__name__ for fn in scrapers}
-        for future in concurrent.futures.as_completed(future_to_fn):
-            try:
-                data = future.result()
-                thai_cache.update({"data": data, "ts": now})
-                return data
-            except Exception:
-                pass
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(scrapers)) as executor:
+            future_to_fn = {executor.submit(run_scraper, fn): fn.__name__ for fn in scrapers}
+            for future in concurrent.futures.as_completed(future_to_fn, timeout=2.0):
+                try:
+                    data = future.result()
+                    thai_cache.update({"data": data, "ts": now})
+                    return data
+                except Exception:
+                    pass
+    except (concurrent.futures.TimeoutError, Exception):
+        pass
 
     if thai_cache.get("data"):
         stale = dict(thai_cache["data"])

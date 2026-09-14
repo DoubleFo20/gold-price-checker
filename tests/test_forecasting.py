@@ -203,6 +203,66 @@ class ForecastServiceTests(unittest.TestCase):
         widths = [upper - lower for lower, upper in zip(result["lower_bound"], result["upper_bound"])]
         self.assertEqual(widths, sorted(widths))
 
+    def test_forecast_summary_trend_contract_adherence(self):
+        from services.forecast_service import get_forecast
+
+        # Case 1: upward trend series
+        up_values = [40000 + (i * 20) for i in range(500)]
+        with (
+            patch("services.forecast_service.load_official_price_series", return_value=(self.labels, up_values, self.quality)),
+            patch("services.forecast_service._load_champion", return_value=self.champion),
+        ):
+            res_up = get_forecast(7)
+            self.assertIn(res_up["summary"]["trend"], ("ขาขึ้น", "ขาลง"))
+            self.assertEqual(res_up["summary"]["trend"], "ขาขึ้น")
+
+        # Case 2: downward trend series
+        down_values = [50000 - (i * 20) for i in range(500)]
+        with (
+            patch("services.forecast_service.load_official_price_series", return_value=(self.labels, down_values, self.quality)),
+            patch("services.forecast_service._load_champion", return_value=self.champion),
+        ):
+            res_down = get_forecast(7)
+            self.assertIn(res_down["summary"]["trend"], ("ขาขึ้น", "ขาลง"))
+            self.assertEqual(res_down["summary"]["trend"], "ขาลง")
+
+        # Case 3: minimal change (less than 0.15% change) still returns valid contract trend
+        flat_values = [44000.0] * 499 + [44000.0]
+        with (
+            patch("services.forecast_service.load_official_price_series", return_value=(self.labels, flat_values, self.quality)),
+            patch("services.forecast_service._load_champion", return_value=self.champion),
+        ):
+            res_flat = get_forecast(1)
+            self.assertIn(res_flat["summary"]["trend"], ("ขาขึ้น", "ขาลง"))
+
+    def test_forecast_supported_periods_complete(self):
+        from services.forecast_service import get_forecast
+
+        with (
+            patch("services.forecast_service.load_official_price_series", return_value=(self.labels, self.values, self.quality)),
+            patch("services.forecast_service._load_champion", return_value=self.champion),
+        ):
+            for period in (1, 7, 30, 90):
+                res = get_forecast(period)
+                self.assertEqual(len(res["forecast"]), period)
+                self.assertEqual(len(res["lower_bound"]), period)
+                self.assertEqual(len(res["upper_bound"]), period)
+                self.assertIn(res["summary"]["trend"], ("ขาขึ้น", "ขาลง"))
+                for lower, pred, upper in zip(res["lower_bound"], res["forecast"], res["upper_bound"]):
+                    self.assertLessEqual(lower, pred)
+                    self.assertLessEqual(pred, upper)
+
+    def test_forecast_unsupported_period_raises_value_error(self):
+        from services.forecast_service import get_forecast
+
+        with (
+            patch("services.forecast_service.load_official_price_series", return_value=(self.labels, self.values, self.quality)),
+            patch("services.forecast_service._load_champion", return_value=self.champion),
+        ):
+            for invalid_period in (0, -1, 14, 60, 100):
+                with self.assertRaises(ValueError):
+                    get_forecast(invalid_period)
+
 
 class OfficialImporterTests(unittest.TestCase):
     def test_final_announcement_of_each_day_wins(self):

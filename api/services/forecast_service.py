@@ -283,7 +283,9 @@ def _get_resilient_price_series() -> tuple[list[str], list[float], dict]:
     live_price = 50000.0
     try:
         from services.gold_price import refresh_thai_cache, thai_cache
-        c = refresh_thai_cache(force=False) or thai_cache.get("data")
+        c = thai_cache.get("data")
+        if not c or not c.get("bar_sell"):
+            c = refresh_thai_cache(force=False)
         if c and c.get("bar_sell"):
             live_price = float(c["bar_sell"])
     except Exception:
@@ -439,12 +441,15 @@ def get_forecast(period: int = 7, model_name: str = "champion", hist_days: int =
     predictions = [round(value, 2) for value in bounded_predictions]
     future_labels = _future_announcement_dates(labels[-1], period)
 
-    # Determine trend text
-    price_change = predictions[-1] - last_actual
-    pct_change = abs(price_change) / max(last_actual, 1.0) * 100.0
-    if pct_change < 0.15:
+    # Determine trend text and terminal targets
+    terminal_target = float(predictions[-1])
+    expected_change = round(terminal_target - last_actual, 2)
+    expected_change_pct = round((expected_change / max(last_actual, 1.0)) * 100.0, 2)
+
+    pct_change = abs(expected_change) / max(last_actual, 1.0) * 100.0
+    if pct_change < 0.10:
         trend_text = "แกว่งตัวในกรอบ (Sideways)"
-    elif price_change > 0:
+    elif expected_change > 0:
         trend_text = "ขาขึ้น"
     else:
         trend_text = "ขาลง"
@@ -459,6 +464,10 @@ def get_forecast(period: int = 7, model_name: str = "champion", hist_days: int =
             "trend": trend_text,
             "max": max(predictions),
             "min": min(predictions),
+            "current_price": round(last_actual, 2),
+            "terminal_target": terminal_target,
+            "expected_change": expected_change,
+            "expected_change_pct": expected_change_pct,
             "confidence": None,
             "source": quality.get("source") or OFFICIAL_SOURCE,
         },
