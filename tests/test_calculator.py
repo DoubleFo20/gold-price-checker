@@ -192,3 +192,140 @@ def test_calculator_execution_node_simulation():
     finally:
         if test_node_file.exists():
             test_node_file.unlink()
+
+
+def test_calculator_edge_cases_and_resilience():
+    """Test Thai numerals, comma numbers, string prices, all units, and missing DOM resilience."""
+    test_node_file = PROJECT_ROOT / "tests" / "run_node_calc_edge_test.js"
+    test_node_code = """
+    const fs = require('fs');
+    const elements = {};
+    function getEl(id) {
+        if (!elements[id]) {
+            elements[id] = {
+                id,
+                value: '',
+                textContent: '--',
+                eventListeners: {},
+                addEventListener: function(e, fn) { this.eventListeners[e] = fn; },
+                removeEventListener: function(e, fn) { delete this.eventListeners[e]; }
+            };
+        }
+        return elements[id];
+    }
+    const tableLabels = [
+        '1 กรัม', 'ครึ่งสลึง', '1 สลึง', '2 สลึง',
+        '1 บาท', '2 บาท', '3 บาท', '4 บาท', '5 บาท'
+    ];
+    const tableRows = tableLabels.map(label => ({
+        querySelector: () => ({ textContent: label }),
+        style: {},
+        title: '',
+        onclick: null
+    }));
+
+    global.document = {
+        getElementById: getEl,
+        querySelectorAll: (sel) => (sel.includes('.weight-table') ? tableRows : []),
+        addEventListener: () => {}
+    };
+    global.window = { isLoggedIn: false };
+    global.localStorage = {
+        _data: {},
+        getItem: function(k) { return this._data[k] || null; },
+        setItem: function(k, v) { this._data[k] = String(v); }
+    };
+    global.setInterval = () => ({ unref: () => {} });
+    global.setTimeout = () => ({ unref: () => {} });
+    global.clearInterval = () => {};
+    global.clearTimeout = () => {};
+
+    const code = fs.readFileSync('js/script.js', 'utf8');
+    const sanitized = code.replace(/await /g, '');
+    eval(sanitized);
+
+    // 1. Thai numeral input '๑.๕'
+    getEl('calc-weight-input').value = '๑.๕';
+    getEl('calc-unit-select').value = 'baht';
+    calculateGoldValue();
+    if (getEl('result-baht').textContent !== '1.500') {
+        console.error('Failed Thai numeral parsing:', getEl('result-baht').textContent);
+        process.exit(1);
+    }
+
+    // 2. Comma formatted input '1,000' with kilogram
+    getEl('calc-weight-input').value = '1,000';
+    getEl('calc-unit-select').value = 'kilogram';
+    calculateGoldValue();
+    if (getEl('result-gram').textContent !== '1000000.000') {
+        console.error('Failed comma parsing for kilogram:', getEl('result-gram').textContent);
+        process.exit(2);
+    }
+
+    // 3. String prices coercion in window.latestThaiPrices
+    window.latestThaiPrices = {
+        bar_buy: '68,000.00',
+        bar_sell: '68,200',
+        ornament_buy: '66,500.50',
+        ornament_sell: '68,700'
+    };
+    getEl('calc-weight-input').value = '1';
+    getEl('calc-unit-select').value = 'baht';
+    calculateGoldValue();
+    if (!getEl('result-bar-buy').textContent.includes('68,000')) {
+        console.error('Failed string price coercion:', getEl('result-bar-buy').textContent);
+        process.exit(3);
+    }
+
+    // 4. Verify all table rows can be clicked and calculate accurately
+    initGoldCalculator();
+    // Test 'ครึ่งสลึง' (0.5 salung = 0.125 baht)
+    tableRows[1].onclick();
+    if (getEl('calc-weight-input').value !== 0.5 || getEl('calc-unit-select').value !== 'salung') {
+        console.error('Failed half-salung click:', getEl('calc-weight-input').value);
+        process.exit(4);
+    }
+    if (getEl('result-baht').textContent !== '0.125') {
+        console.error('Failed half-salung baht result:', getEl('result-baht').textContent);
+        process.exit(4);
+    }
+
+    // Test '5 บาท'
+    tableRows[8].onclick();
+    if (getEl('calc-weight-input').value !== 5 || getEl('calc-unit-select').value !== 'baht') {
+        console.error('Failed 5 baht click:', getEl('calc-weight-input').value);
+        process.exit(5);
+    }
+    if (getEl('result-baht').textContent !== '5.000') {
+        console.error('Failed 5 baht result:', getEl('result-baht').textContent);
+        process.exit(5);
+    }
+
+    // 5. Test missing DOM element resilience
+    const origGetEl = global.document.getElementById;
+    global.document.getElementById = (id) => (id === 'result-jewelry-sell' ? null : origGetEl(id));
+    try {
+        calculateGoldValue(); // Must not throw even if an element is missing
+    } catch (err) {
+        console.error('calculateGoldValue threw on missing element:', err);
+        process.exit(6);
+    }
+    global.document.getElementById = origGetEl;
+
+    console.log('ALL EDGE CASE TESTS PASSED');
+    """
+    test_node_file.write_text(test_node_code, encoding="utf-8")
+    try:
+        res = subprocess.run(
+            ["node", str(test_node_file)],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        assert res.returncode == 0, f"Edge case tests failed: {res.stderr} | {res.stdout}"
+        assert "ALL EDGE CASE TESTS PASSED" in res.stdout
+    finally:
+        if test_node_file.exists():
+            test_node_file.unlink()
+

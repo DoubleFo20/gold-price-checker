@@ -52,7 +52,19 @@ async function loadAllComponents() {
 let isLoggedIn = false;
 let currentUser = null;
 let chartThai, chartWorld, forecastChart;
-let latestThaiPrices = {};
+const DEFAULT_FALLBACK_THAI_PRICES = {
+    bar_buy: 67200.0,
+    bar_sell: 67400.0,
+    ornament_buy: 65855.04,
+    ornament_sell: 68200.0
+};
+let latestThaiPrices = { ...DEFAULT_FALLBACK_THAI_PRICES };
+try {
+    const cached = JSON.parse(localStorage.getItem('cached_thai_prices') || 'null');
+    if (cached && typeof cached === 'object' && Number(cached.bar_sell) > 0) {
+        latestThaiPrices = { ...latestThaiPrices, ...cached };
+    }
+} catch (e) {}
 window.latestThaiPrices = latestThaiPrices;
 
 function buildPythonApiUrl(path) {
@@ -932,6 +944,11 @@ async function fetchAndUpdatePriceBoard() {
         const n = parseFloat(String(v ?? '').replace(/,/g, ''));
         return Number.isFinite(n) ? n : null;
     };
+    const setDomText = (id, txt) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = txt;
+        return el;
+    };
 
     // --- ส่วนทองไทย (Real-time from Server) ---
     try {
@@ -960,11 +977,11 @@ async function fetchAndUpdatePriceBoard() {
             localStorage.setItem('cached_thai_prices', JSON.stringify(latestThaiPrices));
         } catch (e) {}
 
-        document.getElementById('thai-bar-buy').textContent = fmtTHB(normalized.bar_buy);
-        document.getElementById('thai-bar-sell').textContent = fmtTHB(normalized.bar_sell);
-        document.getElementById('thai-jewelry-buy').textContent = fmtTHB(normalized.ornament_buy);
-        document.getElementById('thai-jewelry-sell').textContent = fmtTHB(normalized.ornament_sell);
-        document.getElementById('thai-manual-update-time').textContent = new Date().toLocaleTimeString('th-TH');
+        setDomText('thai-bar-buy', fmtTHB(normalized.bar_buy));
+        setDomText('thai-bar-sell', fmtTHB(normalized.bar_sell));
+        setDomText('thai-jewelry-buy', fmtTHB(normalized.ornament_buy));
+        setDomText('thai-jewelry-sell', fmtTHB(normalized.ornament_sell));
+        setDomText('thai-manual-update-time', new Date().toLocaleTimeString('th-TH'));
 
         // คำนวณมูลค่าทองในเครื่องคำนวณอัตโนมัติทันทีที่ได้ราคาใหม่
         if (typeof calculateGoldValue === 'function') {
@@ -979,23 +996,24 @@ async function fetchAndUpdatePriceBoard() {
                 day: 'numeric', month: 'long', year: 'numeric'
             });
         }
-        document.getElementById('thai-update-date').textContent = displayDate;
-        document.getElementById('thai-update-round').textContent = normalized.update_round || 'ล่าสุด';
+        setDomText('thai-update-date', displayDate);
+        setDomText('thai-update-round', normalized.update_round || 'ล่าสุด');
 
         const changeEl = document.getElementById('thai-today-change');
-        const change = Number.isFinite(normalized.today_change) ? normalized.today_change : 0;
-        if (change === 0) {
-            changeEl.textContent = '- ไม่เปลี่ยนแปลง';
-            changeEl.className = 'change-indicator neutral';
-        } else {
-            changeEl.textContent = `${change > 0 ? '▲' : '▼'} ${Math.abs(change).toLocaleString()} `;
-            changeEl.className = 'change-indicator ' + (change > 0 ? 'positive' : 'negative');
+        if (changeEl) {
+            const change = Number.isFinite(normalized.today_change) ? normalized.today_change : 0;
+            if (change === 0) {
+                changeEl.textContent = '- ไม่เปลี่ยนแปลง';
+                changeEl.className = 'change-indicator neutral';
+            } else {
+                changeEl.textContent = `${change > 0 ? '▲' : '▼'} ${Math.abs(change).toLocaleString()} `;
+                changeEl.className = 'change-indicator ' + (change > 0 ? 'positive' : 'negative');
+            }
         }
 
         // Update "last fetched" timestamp
         const fetchTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const thaiTimeEl = document.getElementById('thai-manual-update-time');
-        if (thaiTimeEl) thaiTimeEl.textContent = fetchTime;
+        setDomText('thai-manual-update-time', fetchTime);
 
     } catch (err) {
         console.error('Failed to fetch Thai gold price:', err);
@@ -1031,8 +1049,8 @@ async function fetchAndUpdatePriceBoard() {
             throw new Error('Invalid world gold payload');
         }
 
-        document.getElementById('world-spot-usd').textContent = usdPerOz.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-        document.getElementById('world-spot-thb').textContent = thbPerBaht.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        setDomText('world-spot-usd', usdPerOz.toLocaleString('en-US', { style: 'currency', currency: 'USD' }));
+        setDomText('world-spot-thb', thbPerBaht.toLocaleString('th-TH', { minimumFractionDigits: 2 }));
         if (document.getElementById('world-update-time')) {
             document.getElementById('world-update-time').textContent = wdata.last_updated || new Date().toLocaleTimeString('th-TH');
         }
@@ -1045,12 +1063,9 @@ async function fetchAndUpdatePriceBoard() {
         const factor = (15.244 / 31.1035) * usdthbFallback;
         if (Number.isFinite(thaiSell) && thaiSell > 0 && factor > 0) {
             const usdPerOzEst = thaiSell / factor;
-            const usdEl = document.getElementById('world-spot-usd');
-            const thbEl = document.getElementById('world-spot-thb');
-            const timeEl = document.getElementById('world-update-time');
-            if (usdEl) usdEl.textContent = usdPerOzEst.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-            if (thbEl) thbEl.textContent = thaiSell.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-            if (timeEl) timeEl.textContent = `${new Date().toLocaleTimeString('th-TH')} (ประมาณค่า)`;
+            setDomText('world-spot-usd', usdPerOzEst.toLocaleString('en-US', { style: 'currency', currency: 'USD' }));
+            setDomText('world-spot-thb', thaiSell.toLocaleString('th-TH', { minimumFractionDigits: 2 }));
+            setDomText('world-update-time', `${new Date().toLocaleTimeString('th-TH')} (ประมาณค่า)`);
         }
     }
 }
@@ -1070,7 +1085,11 @@ function calculateGoldValue() {
     const u = document.getElementById('calc-unit-select');
     if (!w || !u) return;
 
-    const rawVal = String(w.value ?? '').trim();
+    // แปลงตัวเลขไทย (๐-๙) เป็นอารบิก (0-9) และตัด comma ออก
+    const rawVal = String(w.value ?? '')
+        .trim()
+        .replace(/[๐-๙]/g, d => '๐๑๒๓๔๕๖๗๘๙'.indexOf(d))
+        .replace(/,/g, '');
     const weight = parseFloat(rawVal);
 
     const fmtTH = { style: 'currency', currency: 'THB', minimumFractionDigits: 2 };
@@ -1116,23 +1135,30 @@ function calculateGoldValue() {
         grams_display = weight * 1000;
     }
 
+    const toPositiveNum = (v) => {
+        if (typeof v === 'number') return (Number.isFinite(v) && v > 0) ? v : null;
+        if (typeof v === 'string') {
+            const clean = v.replace(/,/g, '').replace(/[^\d.]/g, '');
+            const n = parseFloat(clean);
+            return (Number.isFinite(n) && n > 0) ? n : null;
+        }
+        return null;
+    };
+
     const fromDom = (id) => {
         const el = document.getElementById(id);
-        if (!el) return null;
-        let text = el.textContent || '';
-        // แยกเฉพาะตัวเลขและจุดทศนิยม
-        text = text.replace(/,/g, '').replace(/[^\d.]/g, ''); 
-        const n = parseFloat(text);
-        return (Number.isFinite(n) && n > 0) ? n : null;
+        return el ? toPositiveNum(el.textContent) : null;
     };
 
     // ราคาสำรองเริ่มต้น (Baseline Fallback) กรณีที่ยังดึงราคาจากเซิร์ฟเวอร์หรือ DOM ไม่สำเร็จ
-    const DEFAULT_FALLBACK_PRICES = {
-        bar_buy: 67200.0,
-        bar_sell: 67400.0,
-        ornament_buy: 65855.04,
-        ornament_sell: 68200.0
-    };
+    const DEFAULT_FALLBACK_PRICES = (typeof DEFAULT_FALLBACK_THAI_PRICES !== 'undefined')
+        ? DEFAULT_FALLBACK_THAI_PRICES
+        : {
+            bar_buy: 67200.0,
+            bar_sell: 67400.0,
+            ornament_buy: 65855.04,
+            ornament_sell: 68200.0
+        };
 
     let cachedPrices = null;
     try {
@@ -1142,19 +1168,18 @@ function calculateGoldValue() {
     }
 
     const resolvePrice = (propKey, domId) => {
-        if (Number.isFinite(window.latestThaiPrices?.[propKey]) && window.latestThaiPrices[propKey] > 0) {
-            return window.latestThaiPrices[propKey];
-        }
-        if (Number.isFinite(latestThaiPrices?.[propKey]) && latestThaiPrices[propKey] > 0) {
-            return latestThaiPrices[propKey];
-        }
+        const p1 = toPositiveNum(window.latestThaiPrices?.[propKey]);
+        if (p1) return p1;
+
+        const p2 = toPositiveNum(latestThaiPrices?.[propKey]);
+        if (p2) return p2;
+
         const domVal = fromDom(domId);
-        if (Number.isFinite(domVal) && domVal > 0) {
-            return domVal;
-        }
-        if (cachedPrices && Number.isFinite(cachedPrices[propKey]) && cachedPrices[propKey] > 0) {
-            return cachedPrices[propKey];
-        }
+        if (domVal) return domVal;
+
+        const p3 = cachedPrices ? toPositiveNum(cachedPrices[propKey]) : null;
+        if (p3) return p3;
+
         return DEFAULT_FALLBACK_PRICES[propKey];
     };
 
