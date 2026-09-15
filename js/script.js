@@ -348,8 +348,11 @@ function updateUIAfterLogin() {
         const el = document.getElementById(elId);
         if (el) el.style.display = show ? 'block' : 'none';
     };
-    show('calculator-login-required', !window.isLoggedIn);
-    show('calculator-tool', window.isLoggedIn);
+    // เครื่องคำนวณมูลค่าทองคำ: เปิดให้ใช้งานได้ทันทีทั้ง Guest และ Member
+    const calcTool = document.getElementById('calculator-tool');
+    if (calcTool) calcTool.style.display = 'grid';
+    const calcReq = document.getElementById('calculator-login-required');
+    if (calcReq) calcReq.style.display = 'none';
     show('alert-login-required', !window.isLoggedIn);
     show('alert-tool', window.isLoggedIn);
     show('forecast-login-required', !window.isLoggedIn);
@@ -1483,12 +1486,12 @@ function renderForecastChart(payload) {
         {
             label: `แนวโน้มคาดการณ์ (${payload.model || 'AI Champion'})`,
             data: forecastData,
-            borderColor: '#d4af37',
-            backgroundColor: 'rgba(212,175,55,0.08)',
+            borderColor: '#b8860b',
+            backgroundColor: 'rgba(184,134,11,0.08)',
             borderWidth: 2.5,
             pointRadius: (ctx) => (ctx.dataIndex === totalLen - 1 ? 6 : 0),
             pointHoverRadius: 8,
-            pointBackgroundColor: '#d4af37',
+            pointBackgroundColor: '#b8860b',
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
             borderDash: [5, 5],
