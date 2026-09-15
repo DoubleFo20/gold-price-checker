@@ -1239,6 +1239,11 @@ html.legacy-local-mode .container {
     background-color: #fffbeB;
 }
 
+.weight-table tbody tr:hover td {
+    background-color: #fef3c7;
+    cursor: pointer;
+}
+
 
 /* --- คอลัมน์ขวา: เครื่องคำนวณ --- */
 .calculator-panel h3 {

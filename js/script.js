@@ -27,6 +27,9 @@ async function loadComponent(url, targetId) {
         const resp = await fetch(`components/${url}?v=${cacheBuster}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         el.innerHTML = await resp.text();
+        if (url.includes('5-calculator.html') && typeof initGoldCalculator === 'function') {
+            initGoldCalculator();
+        }
     } catch (e) {
         console.error('Load error:', url, e);
         el.innerHTML = `<p style="color:red; text-align:center;">โหลดส่วนประกอบ ${url} ล้มเหลว</p>`;
@@ -50,6 +53,7 @@ let isLoggedIn = false;
 let currentUser = null;
 let chartThai, chartWorld, forecastChart;
 let latestThaiPrices = {};
+window.latestThaiPrices = latestThaiPrices;
 
 function buildPythonApiUrl(path) {
     const p = String(path || '');
@@ -353,6 +357,7 @@ function updateUIAfterLogin() {
     if (calcTool) calcTool.style.display = 'grid';
     const calcReq = document.getElementById('calculator-login-required');
     if (calcReq) calcReq.style.display = 'none';
+    if (typeof calculateGoldValue === 'function') calculateGoldValue();
     show('alert-login-required', !window.isLoggedIn);
     show('alert-tool', window.isLoggedIn);
     show('forecast-login-required', !window.isLoggedIn);
@@ -950,12 +955,21 @@ async function fetchAndUpdatePriceBoard() {
         }
 
         latestThaiPrices = { ...latestThaiPrices, ...normalized };
+        window.latestThaiPrices = latestThaiPrices;
+        try {
+            localStorage.setItem('cached_thai_prices', JSON.stringify(latestThaiPrices));
+        } catch (e) {}
 
         document.getElementById('thai-bar-buy').textContent = fmtTHB(normalized.bar_buy);
         document.getElementById('thai-bar-sell').textContent = fmtTHB(normalized.bar_sell);
         document.getElementById('thai-jewelry-buy').textContent = fmtTHB(normalized.ornament_buy);
         document.getElementById('thai-jewelry-sell').textContent = fmtTHB(normalized.ornament_sell);
         document.getElementById('thai-manual-update-time').textContent = new Date().toLocaleTimeString('th-TH');
+
+        // คำนวณมูลค่าทองในเครื่องคำนวณอัตโนมัติทันทีที่ได้ราคาใหม่
+        if (typeof calculateGoldValue === 'function') {
+            calculateGoldValue();
+        }
 
         // อัปเดตข้อมูลในแถบประกาศ
         // ถ้า date ไม่มีค่าให้ใช้ default
@@ -985,7 +999,24 @@ async function fetchAndUpdatePriceBoard() {
 
     } catch (err) {
         console.error('Failed to fetch Thai gold price:', err);
-        // Fallback or show error state if needed
+        try {
+            const cached = JSON.parse(localStorage.getItem('cached_thai_prices') || 'null');
+            if (cached && Number.isFinite(cached.bar_sell)) {
+                latestThaiPrices = { ...cached };
+                window.latestThaiPrices = latestThaiPrices;
+                const tbBuy = document.getElementById('thai-bar-buy');
+                const tbSell = document.getElementById('thai-bar-sell');
+                const tjBuy = document.getElementById('thai-jewelry-buy');
+                const tjSell = document.getElementById('thai-jewelry-sell');
+                if (tbBuy && tbBuy.textContent.trim() === '--') tbBuy.textContent = fmtTHB(cached.bar_buy);
+                if (tbSell && tbSell.textContent.trim() === '--') tbSell.textContent = fmtTHB(cached.bar_sell);
+                if (tjBuy && tjBuy.textContent.trim() === '--') tjBuy.textContent = fmtTHB(cached.ornament_buy);
+                if (tjSell && tjSell.textContent.trim() === '--') tjSell.textContent = fmtTHB(cached.ornament_sell);
+            }
+        } catch (e) {}
+        if (typeof calculateGoldValue === 'function') {
+            calculateGoldValue();
+        }
     }
 
     // --- ส่วนทองโลก ---
@@ -1033,18 +1064,29 @@ function switchPriceTab(tabName, btn) {
     }
     btn.classList.add('active');
 }
-/* === Calculator (ต้อง login)=== */
+/* === Calculator (ใช้งานได้ทั้ง Guest และ Member) === */
 function calculateGoldValue() {
-    if (!window.isLoggedIn) return;
-
     const w = document.getElementById('calc-weight-input');
     const u = document.getElementById('calc-unit-select');
     if (!w || !u) return;
 
-    const weight = parseFloat(w.value);
+    const rawVal = String(w.value ?? '').trim();
+    const weight = parseFloat(rawVal);
+
+    const fmtTH = { style: 'currency', currency: 'THB', minimumFractionDigits: 2 };
+    const setTxt = (id, txt) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = txt;
+    };
+
     if (!isFinite(weight) || weight < 0) {
-        ['result-gram', 'result-baht', 'result-bar-buy', 'result-bar-sell', 'result-jewelry-buy', 'result-jewelry-sell']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = id.includes('result-') ? '0.00' : '0.000'; });
+        const zeroTHB = (0).toLocaleString('th-TH', fmtTH);
+        setTxt('result-gram', '0.000');
+        setTxt('result-baht', '0.000');
+        setTxt('result-bar-buy', zeroTHB);
+        setTxt('result-bar-sell', zeroTHB);
+        setTxt('result-jewelry-buy', zeroTHB);
+        setTxt('result-jewelry-sell', zeroTHB);
         return;
     }
 
@@ -1055,19 +1097,20 @@ function calculateGoldValue() {
     let bahtW_orn = 0;
     let grams_display = 0;
 
-    if (u.value === 'gram') {
+    const unit = u.value;
+    if (unit === 'gram') {
         bahtW_bar = weight / GRAMS_PER_BAHT_BAR;
         bahtW_orn = weight / GRAMS_PER_BAHT_ORN;
         grams_display = weight;
-    } else if (u.value === 'salung') {
+    } else if (unit === 'salung') {
         bahtW_bar = weight / 4;
         bahtW_orn = weight / 4;
         grams_display = weight * (GRAMS_PER_BAHT_BAR / 4);
-    } else if (u.value === 'baht') {
+    } else if (unit === 'baht') {
         bahtW_bar = weight;
         bahtW_orn = weight;
         grams_display = weight * GRAMS_PER_BAHT_BAR;
-    } else if (u.value === 'kilogram') {
+    } else if (unit === 'kilogram') {
         bahtW_bar = (weight * 1000) / GRAMS_PER_BAHT_BAR;
         bahtW_orn = (weight * 1000) / GRAMS_PER_BAHT_ORN;
         grams_display = weight * 1000;
@@ -1077,31 +1120,104 @@ function calculateGoldValue() {
         const el = document.getElementById(id);
         if (!el) return null;
         let text = el.textContent || '';
-        // Extract only the numbers and dots, ignoring commas and currency symbols
+        // แยกเฉพาะตัวเลขและจุดทศนิยม
         text = text.replace(/,/g, '').replace(/[^\d.]/g, ''); 
         const n = parseFloat(text);
-        return Number.isFinite(n) ? n : null;
+        return (Number.isFinite(n) && n > 0) ? n : null;
     };
 
-    const barBuy = Number.isFinite(window.latestThaiPrices?.bar_buy) ? window.latestThaiPrices.bar_buy : fromDom('thai-bar-buy');
-    const barSell = Number.isFinite(window.latestThaiPrices?.bar_sell) ? window.latestThaiPrices.bar_sell : fromDom('thai-bar-sell');
-    const ornBuy = Number.isFinite(window.latestThaiPrices?.ornament_buy) ? window.latestThaiPrices.ornament_buy : fromDom('thai-jewelry-buy');
-    const ornSell = Number.isFinite(window.latestThaiPrices?.ornament_sell) ? window.latestThaiPrices.ornament_sell : fromDom('thai-jewelry-sell');
+    // ราคาสำรองเริ่มต้น (Baseline Fallback) กรณีที่ยังดึงราคาจากเซิร์ฟเวอร์หรือ DOM ไม่สำเร็จ
+    const DEFAULT_FALLBACK_PRICES = {
+        bar_buy: 67200.0,
+        bar_sell: 67400.0,
+        ornament_buy: 65855.04,
+        ornament_sell: 68200.0
+    };
 
-    if (![barBuy, barSell, ornBuy, ornSell].every(v => Number.isFinite(v))) {
-        console.warn('Calculator error: Could not load active prices', { barBuy, barSell, ornBuy, ornSell });
-        return;
+    let cachedPrices = null;
+    try {
+        cachedPrices = JSON.parse(localStorage.getItem('cached_thai_prices') || 'null');
+    } catch (e) {
+        cachedPrices = null;
     }
 
-    const fmtTH = { style: 'currency', currency: 'THB', minimumFractionDigits: 2 };
+    const resolvePrice = (propKey, domId) => {
+        if (Number.isFinite(window.latestThaiPrices?.[propKey]) && window.latestThaiPrices[propKey] > 0) {
+            return window.latestThaiPrices[propKey];
+        }
+        if (Number.isFinite(latestThaiPrices?.[propKey]) && latestThaiPrices[propKey] > 0) {
+            return latestThaiPrices[propKey];
+        }
+        const domVal = fromDom(domId);
+        if (Number.isFinite(domVal) && domVal > 0) {
+            return domVal;
+        }
+        if (cachedPrices && Number.isFinite(cachedPrices[propKey]) && cachedPrices[propKey] > 0) {
+            return cachedPrices[propKey];
+        }
+        return DEFAULT_FALLBACK_PRICES[propKey];
+    };
 
-    document.getElementById('result-gram').textContent = grams_display.toFixed(3);
-    document.getElementById('result-baht').textContent = bahtW_bar.toFixed(3);
-    document.getElementById('result-bar-buy').textContent = (bahtW_bar * barBuy).toLocaleString('th-TH', fmtTH);
-    document.getElementById('result-bar-sell').textContent = (bahtW_bar * barSell).toLocaleString('th-TH', fmtTH);
-    document.getElementById('result-jewelry-buy').textContent = (bahtW_orn * ornBuy).toLocaleString('th-TH', fmtTH);
-    document.getElementById('result-jewelry-sell').textContent = (bahtW_orn * ornSell).toLocaleString('th-TH', fmtTH);
+    const barBuy = resolvePrice('bar_buy', 'thai-bar-buy');
+    const barSell = resolvePrice('bar_sell', 'thai-bar-sell');
+    const ornBuy = resolvePrice('ornament_buy', 'thai-jewelry-buy');
+    const ornSell = resolvePrice('ornament_sell', 'thai-jewelry-sell');
+
+    setTxt('result-gram', grams_display.toFixed(3));
+    setTxt('result-baht', bahtW_bar.toFixed(3));
+    setTxt('result-bar-buy', (bahtW_bar * barBuy).toLocaleString('th-TH', fmtTH));
+    setTxt('result-bar-sell', (bahtW_bar * barSell).toLocaleString('th-TH', fmtTH));
+    setTxt('result-jewelry-buy', (bahtW_orn * ornBuy).toLocaleString('th-TH', fmtTH));
+    setTxt('result-jewelry-sell', (bahtW_orn * ornSell).toLocaleString('th-TH', fmtTH));
 }
+
+function initGoldCalculator() {
+    const weightInput = document.getElementById('calc-weight-input');
+    const unitSelect = document.getElementById('calc-unit-select');
+    if (!weightInput || !unitSelect) return;
+
+    ['input', 'keyup', 'change'].forEach(evt => {
+        weightInput.removeEventListener(evt, calculateGoldValue);
+        weightInput.addEventListener(evt, calculateGoldValue);
+    });
+
+    ['change', 'input'].forEach(evt => {
+        unitSelect.removeEventListener(evt, calculateGoldValue);
+        unitSelect.addEventListener(evt, calculateGoldValue);
+    });
+
+    // ทำให้แถวตารางเปรียบเทียบน้ำหนักสามารถคลิกเพื่อคำนวณได้ทันที
+    const tableRows = document.querySelectorAll('.weight-table tbody tr');
+    tableRows.forEach(row => {
+        const text = row.querySelector('td:first-child')?.textContent?.trim() || '';
+        let matchWeight = null;
+        let matchUnit = null;
+
+        if (text === '1 กรัม') { matchWeight = 1; matchUnit = 'gram'; }
+        else if (text === 'ครึ่งสลึง') { matchWeight = 0.5; matchUnit = 'salung'; }
+        else if (text === '1 สลึง') { matchWeight = 1; matchUnit = 'salung'; }
+        else if (text === '2 สลึง') { matchWeight = 2; matchUnit = 'salung'; }
+        else if (text === '1 บาท') { matchWeight = 1; matchUnit = 'baht'; }
+        else if (text === '2 บาท') { matchWeight = 2; matchUnit = 'baht'; }
+        else if (text === '3 บาท') { matchWeight = 3; matchUnit = 'baht'; }
+        else if (text === '4 บาท') { matchWeight = 4; matchUnit = 'baht'; }
+        else if (text === '5 บาท') { matchWeight = 5; matchUnit = 'baht'; }
+
+        if (matchWeight !== null && matchUnit !== null) {
+            row.style.cursor = 'pointer';
+            row.title = `คลิกเพื่อคำนวณ ${text}`;
+            row.onclick = () => {
+                weightInput.value = matchWeight;
+                unitSelect.value = matchUnit;
+                calculateGoldValue();
+            };
+        }
+    });
+
+    calculateGoldValue();
+}
+window.initGoldCalculator = initGoldCalculator;
+window.calculateGoldValue = calculateGoldValue;
 function createGoldChart(canvasId, data, label, backgroundColor, borderColor) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') {
@@ -2093,6 +2209,7 @@ async function initializeApp() {
     // [OPTIMIZATION] Don't await the price board fetch so it doesn't block the rest of the page (like charts loading)
     fetchAndUpdatePriceBoard().catch(err => console.error('Price board error:', err));
     setInterval(fetchAndUpdatePriceBoard, 30000); // ราคาทองวันนี้: ทุก 30 วินาที
+    if (typeof initGoldCalculator === 'function') initGoldCalculator();
     
     // [เพิ่ม] อัปเดตการแจ้งเตือน In-App ทุก 1 นาที
     setInterval(() => {

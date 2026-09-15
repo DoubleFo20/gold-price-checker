@@ -9,11 +9,11 @@
                 <h3>คำนวณ</h3>
                 <div class="calc-form">
                     <label for="calc-weight-input">น้ำหนัก</label>
-                    <input type="number" id="calc-weight-input" value="0" step="any" oninput="calculateGoldValue()">
-                    <select id="calc-unit-select" onchange="calculateGoldValue()">
-                        <option value="gram">กรัม</option>
+                    <input type="number" id="calc-weight-input" value="1" min="0" step="any" autocomplete="off" oninput="calculateGoldValue()" onkeyup="calculateGoldValue()" onchange="calculateGoldValue()">
+                    <select id="calc-unit-select" onchange="calculateGoldValue()" oninput="calculateGoldValue()">
+                        <option value="baht" selected>บาท</option>
                         <option value="salung">สลึง</option>
-                        <option value="baht">บาท</option>
+                        <option value="gram">กรัม</option>
                         <option value="kilogram">กิโลกรัม</option>
                     </select>
                 </div>
